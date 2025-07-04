@@ -274,7 +274,6 @@ class TestCheckFunction:
             mock_health_checker_class.return_value = mock_health_checker
 
             result = await check()
-
             assert result == 1
 
 
