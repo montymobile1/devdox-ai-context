@@ -41,7 +41,7 @@ ENV/
 *.swo
 
 .env
-.env
+app/.env
 
 
 
