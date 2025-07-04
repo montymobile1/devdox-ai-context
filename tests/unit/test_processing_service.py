@@ -140,7 +140,6 @@ class TestProcessingService:
     ):
         """Test successful repository cloning and processing"""
         repo_url = "https://github.com/test/test-repo"
-        repo_path = "/tmp/test-repo"
         branch = "main"
 
         # Mock documents
@@ -153,13 +152,16 @@ class TestProcessingService:
         mock_loader_instance.load.return_value = mock_documents
         mock_git_loader.return_value = mock_loader_instance
 
-        result = await processing_service.clone_and_process_repository(
-            repo_url, repo_path, branch
-        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-        assert result == mock_documents
-        mock_git_loader.assert_called_once()
-        mock_loader_instance.load.assert_called_once()
+            result = await processing_service.clone_and_process_repository(
+                repo_url, tmp_dir, branch  # Use tmp_dir instead of hardcoded path
+            )
+
+            assert result == mock_documents
+            mock_git_loader.assert_called_once()
+            mock_loader_instance.load.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("app.services.processing_service.GitLoader")
@@ -168,13 +170,14 @@ class TestProcessingService:
     ):
         """Test repository cloning failure"""
         repo_url = "https://github.com/test/test-repo"
-        repo_path = "/tmp/test-repo"
 
         mock_git_loader.side_effect = Exception("Clone failed")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-        result = await processing_service.clone_and_process_repository(
-            repo_url, repo_path
-        )
+            result = await processing_service.clone_and_process_repository(
+                repo_url, tmp_dir
+            )
 
         assert result == []
 
@@ -326,7 +329,6 @@ class TestProcessingService:
         chunks = []
 
         result = await processing_service._create_embeddings(chunks)
-        print("result line 283 ", result)
 
         assert result == []
         mock_together_class.assert_not_called()
@@ -431,7 +433,6 @@ class TestProcessingService:
 
         assert result.success is False
         assert result.context_id == "ctx123"
-        print("result false ", result)
         assert "Repository not found" in result.error_message
 
         # Verify context status was updated to failed
