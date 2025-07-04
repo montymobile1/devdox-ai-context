@@ -40,7 +40,7 @@ dependencies = [
     "langchain-mongodb==0.6.1",
     "langchain-together==0.3.0",
     "together==1.5.17",
-    "models @ git+https://github.com/montymobile1/devdox-ai-models.git@3e4eae26f31230dd15760f35389021e7372308c2",
+    "models @ git+https://github.com/montymobile1/devdox-ai-models.git@c7b72e1db2fa646a94e9209d2818e3f55a26cc28",
     "encryption-service @ git+https://github.com/montymobile1/devdox-ai-encryption.git4eefae1c5dfdc6a2ecbdf9acdcb4c099db8523e1"
 
 ]

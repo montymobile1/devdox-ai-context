@@ -108,6 +108,15 @@ class ProcessingService:
             )
             repo_local = Repo(relative_path)
             commit_hash = repo_local.head.commit.hexsha
+            if repo.last_commit == commit_hash and repo.status == "failed":
+                return ProcessingResult(
+                    success=False,
+                    context_id=context_id,
+                    processing_time=0,
+                    chunks_created=0,
+                    embeddings_created=0,
+                    error_message="Repository already processed",
+                )
             # Process files into chunks
             chunks = await self._process_files_to_chunks(
                 files, context_id, repo.id, repo.user_id
@@ -173,7 +182,7 @@ class ProcessingService:
         #     raise Exception(f"No {git_provider} configuration found for user")
 
         # Decrypt the stored token
-        user = await self.user_info.find_by_user_id(user_id)  # This should be user repo
+        user = await self.user_info.find_by_user_id(user_id)
         decrypted_token = self.encryption_service.decrypt_for_user(
             git_config.token_value, user.encryption_salt
         )
