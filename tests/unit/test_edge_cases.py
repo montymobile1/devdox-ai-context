@@ -26,7 +26,7 @@ class TestEdgeCases:
         mock_settings.WORKER_CONCURRENCY = 0
 
         # Should handle zero workers gracefully
-        await service.start_workers()
+        service.start_workers()
 
         assert len(service.workers) == 0
 
@@ -401,7 +401,9 @@ class TestRaceConditionSimulation:
                     await service.initialize()
 
                     # Start and shutdown concurrently
-                    startup_task = asyncio.create_task(service.start_workers())
+                    startup_task = asyncio.create_task(
+                        asyncio.to_thread(service.start_workers)
+                    )
 
                     # Small delay then shutdown
                     await asyncio.sleep(0.01)

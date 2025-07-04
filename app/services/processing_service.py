@@ -71,7 +71,7 @@ class ProcessingService:
             documents = loader.load()
 
             return documents
-        except:
+        except Exception:
             return []
 
     async def process_repository(self, job_payload: Dict[str, Any]) -> ProcessingResult:

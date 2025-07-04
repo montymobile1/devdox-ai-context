@@ -38,7 +38,7 @@ class HealthChecker:
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
 
-    async def check_queue_system(self) -> Dict[str, Any]:
+    def check_queue_system(self) -> Dict[str, Any]:
         """Check queue system health"""
         try:
             from app.infrastructure.queues.supabase_queue import SupabaseQueue

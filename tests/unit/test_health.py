@@ -68,7 +68,7 @@ class TestHealthChecker:
         mock_queue = MagicMock()
         mock_supabase_queue.return_value = mock_queue
 
-        result = await health_checker.check_queue_system()
+        result = health_checker.check_queue_system()
 
         assert result["status"] == "healthy"
         assert result["queue_type"] == "supabase"
@@ -88,7 +88,7 @@ class TestHealthChecker:
 
         mock_supabase_queue.side_effect = Exception("Queue connection failed")
 
-        result = await health_checker.check_queue_system()
+        result = health_checker.check_queue_system()
 
         assert result["status"] == "unhealthy"
         assert "error" in result
@@ -266,6 +266,7 @@ class TestCheckFunction:
         """Test health check when unhealthy"""
         mock_tortoise_init.return_value = None
         mock_close_connections.return_value = None
+
         # Mock health checker
         with patch("app.health.HealthChecker") as mock_health_checker_class:
             mock_health_checker = MagicMock()
