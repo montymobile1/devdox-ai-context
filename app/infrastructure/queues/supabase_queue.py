@@ -340,7 +340,7 @@ class SupabaseQueue:
                 if isinstance(updated_job_data, str):
                     try:
                         updated_job_data = json.loads(updated_job_data)
-                    except:
+                    except (json.JSONDecodeError, ValueError):
                         updated_job_data = {}
 
                 # Add retry information
@@ -444,7 +444,7 @@ class SupabaseQueue:
 
         except Exception as e:
             logger.error(f"Failed to cleanup jobs: {str(e)}")
-            return 0
+            return -1
 
     async def close(self):
         """Close the queue connection"""

@@ -2,8 +2,12 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, TypeVar, Generic
 from uuid import UUID
 from datetime import datetime, timezone
-from models import *
-from app.core.exceptions.base import *
+from models import User, Repo, APIKEY, GitLabel, CodeChunks
+from app.core.exceptions.base import (
+    RepoNotFoundError,
+    DatabaseError,
+    ContextNotFoundError,
+)
 import logging
 
 logger = logging.getLogger(__name__)
