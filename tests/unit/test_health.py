@@ -266,7 +266,6 @@ class TestCheckFunction:
         """Test health check when unhealthy"""
         mock_tortoise_init.return_value = None
         mock_close_connections.return_value = None
-
         # Mock health checker
         with patch("app.health.HealthChecker") as mock_health_checker_class:
             mock_health_checker = MagicMock()
