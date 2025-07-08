@@ -36,5 +36,5 @@ jobs:
 
       - name: Run tests and generate coverage
         run: |
-          coverage run -m pytest tests
+          coverage run --source=app -m pytest tests
           coverage xml
