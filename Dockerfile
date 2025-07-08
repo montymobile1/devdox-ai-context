@@ -9,11 +9,8 @@ RUN apk add --no-cache \
     git \
     linux-headers \
     musl-dev \
-    rust
-
-
-# Create a non-root user and group
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+    rust && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Set working directory
 WORKDIR /app
