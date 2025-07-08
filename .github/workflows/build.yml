@@ -31,8 +31,10 @@ jobs:
       - name: Build Docker image
         run: docker build -t devdox-context:latest .
 
+      - name: Copy .env.example to .env
+        run: cp app/.env.example app/.env
+
       - name: Run tests and generate coverage
-        working-directory: devdox
         run: |
-          coverage run -m pytest tests
+          coverage run --source=app -m pytest tests
           coverage xml

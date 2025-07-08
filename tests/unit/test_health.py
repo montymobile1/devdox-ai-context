@@ -171,7 +171,7 @@ class TestHealthChecker:
 
         # Mock all check methods
         health_checker.check_database = AsyncMock(return_value={"status": "healthy"})
-        health_checker.check_queue_system = AsyncMock(
+        health_checker.check_queue_system = MagicMock(
             return_value={"status": "healthy"}
         )
         health_checker.check_external_apis = AsyncMock(return_value={})
@@ -197,7 +197,7 @@ class TestHealthChecker:
 
         # Mock all check methods
         health_checker.check_database = AsyncMock(return_value={"status": "unhealthy"})
-        health_checker.check_queue_system = AsyncMock(
+        health_checker.check_queue_system = MagicMock(
             return_value={"status": "healthy"}
         )
         health_checker.check_external_apis = AsyncMock(return_value={})
@@ -215,7 +215,7 @@ class TestHealthChecker:
 
         # Mock all check methods with exceptions
         health_checker.check_database = AsyncMock(side_effect=Exception("DB error"))
-        health_checker.check_queue_system = AsyncMock(
+        health_checker.check_queue_system = MagicMock(
             side_effect=Exception("Queue error")
         )
         health_checker.check_external_apis = AsyncMock(

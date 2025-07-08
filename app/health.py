@@ -90,14 +90,18 @@ class HealthChecker:
     async def check_all(self) -> Dict[str, Any]:
         """Perform comprehensive health check"""
         self.last_check = datetime.now(timezone.utc)
-
-        # Run all checks concurrently
-        db_check, queue_check, api_checks = await asyncio.gather(
+  
+        db_check, api_checks = await asyncio.gather(
             self.check_database(),
-            self.check_queue_system(),
             self.check_external_apis(),
             return_exceptions=True,
         )
+
+        # Handle sync queue check separately
+        try:
+            queue_check = self.check_queue_system()
+        except Exception as e:
+            queue_check = {"status": "error", "error": str(e)}
 
         # Handle any exceptions from the checks
         if isinstance(db_check, Exception):
