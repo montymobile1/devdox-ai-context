@@ -10,6 +10,7 @@ from app.infrastructure.database.repositories import (
 )
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.handlers.message_handler import MessageHandler
+from app.services.auth_service import AuthService
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.services.processing_service import ProcessingService
 from app.core.config import settings
@@ -43,6 +44,13 @@ class Container(containers.DeclarativeContainer):
         FernetEncryptionHelper, secret_key=settings.SECRET_KEY
     )
 
+    auth_service = providers.Factory(
+        AuthService,
+        user_repository=user_repository,
+        api_key_repository=api_key_repository,
+        encryption_service=encryption_service,
+    )
+
     # Application Services
     processing_service = providers.Factory(
         ProcessingService,
@@ -56,6 +64,7 @@ class Container(containers.DeclarativeContainer):
 
     message_handler = providers.Factory(
         MessageHandler,
+        auth_service=auth_service,
         processing_service=processing_service,
         queue_service=queue_service,
     )

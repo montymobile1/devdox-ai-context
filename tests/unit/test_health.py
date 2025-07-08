@@ -175,9 +175,7 @@ class TestHealthChecker:
             return_value={"status": "healthy"}
         )
         health_checker.check_external_apis = AsyncMock(return_value={})
-        print("await health_checker.check_all() ", await health_checker.check_all())
         result = await health_checker.check_all()
-        print("result ", result)
         assert result["healthy"] is True
         assert result["service"] == "devdox-ai-context"
         assert result["version"] == "1.0.0"

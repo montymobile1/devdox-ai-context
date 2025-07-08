@@ -22,6 +22,7 @@ dependencies = [
     "tortoise-orm==0.24.0",
     "pydantic==2.8.0",
     "pydantic-settings==2.5.2",
+    "starlette>=0.37.2",
     "supabase==2.16.0",
     "redis==5.0.1",
     "tembo-pgmq-python==0.10.0",
@@ -41,8 +42,7 @@ dependencies = [
     "langchain-together==0.3.0",
     "together==1.5.17",
     "models @ git+https://github.com/montymobile1/devdox-ai-models.git@c7b72e1db2fa646a94e9209d2818e3f55a26cc28",
-    "encryption-service @ git+https://github.com/montymobile1/devdox-ai-encryption.git4eefae1c5dfdc6a2ecbdf9acdcb4c099db8523e1"
-
+    "devdox-ai-encryption @ git+https://github.com/montymobile1/devdox-ai-encryption.git@4eefae1",
 ]
 
 [project.optional-dependencies]
