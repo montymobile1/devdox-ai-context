@@ -95,9 +95,8 @@ class QueueWorker:
 
         try:
             # Route job to appropriate handler based on queue and type
-            if queue_name == "processing":
-                if job_type in ["analyze", "process"]:
-                    await self.message_handler.handle_processing_message(payload)
+            if queue_name == "processing" and job_type in ["analyze", "process"]:
+                await self.message_handler.handle_processing_message(payload)
 
             # Mark job as completed
             await self.queue_service.complete_job(job)
@@ -144,12 +143,12 @@ class WorkerHealthMonitor:
         """Start health monitoring loop"""
         while True:
             try:
-                await self._check_worker_health()
+                self._check_worker_health()
                 await asyncio.sleep(60)  # Check every minute
             except Exception as e:
                 await asyncio.sleep(60)
 
-    async def _check_worker_health(self):
+    def _check_worker_health(self):
         """Check health of all workers"""
         total_stats = {
             "total_workers": len(self.workers),
