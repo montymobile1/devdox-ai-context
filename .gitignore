@@ -50,6 +50,8 @@ app/.env2
 /models/*
 app/models/
 
+app/repos/*
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

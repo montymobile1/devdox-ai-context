@@ -34,7 +34,7 @@ jobs:
       - name: Run tests and generate coverage
         run: |
           coverage run --source=app -m pytest tests
-          coverage xml
+          coverage xml -o coverage.xml
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
