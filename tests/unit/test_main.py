@@ -76,7 +76,7 @@ class TestWorkerService:
             mock_settings.WORKER_CONCURRENCY = 1
 
             with pytest.raises(Exception) as exc_info:
-                await worker_service.start_workers()
+                 worker_service.start_workers()
 
             assert "Worker creation failed" in str(exc_info.value)
 
