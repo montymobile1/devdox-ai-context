@@ -34,7 +34,12 @@ jobs:
       - name: Run tests and generate coverage
         run: |
           coverage run --source=app -m pytest tests
+          coverage report  # Show coverage in logs
           coverage xml -o coverage.xml
+      - name: List files for debugging
+        run: |
+          ls -la
+          ls -la coverage.xml || echo "coverage.xml not found"
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
