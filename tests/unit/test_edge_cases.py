@@ -327,7 +327,7 @@ class TestMemoryAndResourceManagement:
         with tempfile.TemporaryDirectory() as tmp_dir:
             processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-        processing_service.clone_and_process_repository = AsyncMock(
+        processing_service.clone_and_process_repository = MagicMock(
             side_effect=Exception("Processing failed halfway")
         )
 

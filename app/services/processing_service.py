@@ -54,7 +54,7 @@ class ProcessingService:
 
         return repo_path
 
-    async def clone_and_process_repository(
+    def clone_and_process_repository(
         self, repo_url: str, repo_path: str, branch: str = "main"
     ):
         # Clone repository using LangChain's GitLoader
@@ -103,7 +103,7 @@ class ProcessingService:
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
 
-            files = await self.clone_and_process_repository(
+            files = self.clone_and_process_repository(
                 repo.html_url, relative_path, job_payload.get("branch", "production")
             )
             repo_local = Repo(relative_path)
@@ -118,10 +118,10 @@ class ProcessingService:
                     error_message="Repository already processed",
                 )
             # Process files into chunks
-            chunks = await self._process_files_to_chunks(
-                files, context_id, repo.id, repo.user_id
+            chunks = self._process_files_to_chunks(
+                files
             )
-            embeddings = await self._create_embeddings(
+            embeddings =  self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
@@ -191,8 +191,8 @@ class ProcessingService:
         test = self.git_client_factory.create_client(git_provider, decrypted_token)
         return test
 
-    async def _process_files_to_chunks(
-        self, files: List[Dict], context_id: str, repo_id: str, user_id: str
+    def _process_files_to_chunks(
+        self, files: List[Dict]
     ) -> List[Dict]:
         """Process files into code chunks"""
         chunks = []
@@ -202,7 +202,7 @@ class ProcessingService:
         chunks = text_splitter.split_documents(files)
         return chunks
 
-    async def _chunk_file_content(self, file_data: Dict, context_id: str) -> List[Dict]:
+    def _chunk_file_content(self, file_data: Dict, context_id: str) -> List[Dict]:
         """Chunk individual file content"""
         # Implementation for intelligent code chunking
         # This would involve:
@@ -259,7 +259,7 @@ class ProcessingService:
 
         return "text"
 
-    async def _create_embeddings(
+    def _create_embeddings(
         self,
         chunks: List[Document],
         model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
@@ -271,30 +271,30 @@ class ProcessingService:
             together_client = Together(api_key=settings.TOGETHER_API_KEY)
 
             if chunks:
-                # TO DO shoule be changed
-                chunk = chunks[0]
                 try:
-                    response = together_client.embeddings.create(
-                        input=chunk.page_content,
-                        model=model_api_string,
-                    )
+                    # TO DO shoule be changed
+                   for chunk in chunks:
 
-                    embedding = {
-                        "chunk_id": str(
-                            uuid.uuid4()
-                        ),  # This would be set after chunk creation
-                        "embedding": response.data[0].embedding,
-                        "model_name": model_api_string,
-                        "model_version": "1.0",
-                        "vector_dimension": len(response.data[0].embedding),
-                        "content": chunk.page_content,
-                        "metadata": chunk.metadata,
-                        "file_name": chunk.metadata.get("file_name", ""),
-                        "file_path": chunk.metadata.get("file_path", ""),
-                        "file_path": chunk.metadata.get("source", ""),
-                        "file_size": chunk.metadata.get("file_size", 0),
-                    }
-                    embeddings.append(embedding)
+                        response = together_client.embeddings.create(
+                            input=chunk.page_content,
+                            model=model_api_string,
+                        )
+
+                        embedding = {
+                            "chunk_id": str(
+                                uuid.uuid4()
+                            ),  # This would be set after chunk creation
+                            "embedding": response.data[0].embedding,
+                            "model_name": model_api_string,
+                            "model_version": "1.0",
+                            "vector_dimension": len(response.data[0].embedding),
+                            "content": chunk.page_content,
+                            "metadata": chunk.metadata,
+                            "file_name": chunk.metadata.get("file_name", ""),
+                            "file_path": chunk.metadata.get("file_path", ""),
+                            "file_size": chunk.metadata.get("file_size", 0),
+                        }
+                        embeddings.append(embedding)
 
                 except Exception as e:
                     logger.error(f"Failed to create embedding for chunk: {e}")
