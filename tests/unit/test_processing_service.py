@@ -239,9 +239,7 @@ class TestProcessingService:
                 metadata={"source": "world.py"},
             ),
         ]
-        context_id = "ctx123"
-        repo_id = "repo456"
-        user_id = "user789"
+
 
         mock_chunks = [
             Document(page_content="def hello():", metadata={"source": "hello.py"}),
@@ -255,7 +253,7 @@ class TestProcessingService:
         mock_text_splitter.return_value = mock_splitter_instance
 
         result =  processing_service._process_files_to_chunks(
-            files, context_id, repo_id, user_id
+            files
         )
 
         assert result == mock_chunks
@@ -320,7 +318,6 @@ class TestProcessingService:
         assert embedding["content"] == "def hello(): pass"
         assert embedding["metadata"] == {"file_name": "test.py", "source": "test.py"}
 
-    @pytest.mark.asyncio
     @patch("app.services.processing_service.Together")
     def test_create_embeddings_empty_chunks(
         self, mock_together_class, processing_service
@@ -333,7 +330,6 @@ class TestProcessingService:
         assert result == []
         mock_together_class.assert_not_called()
 
-    @pytest.mark.asyncio
     @patch("app.services.processing_service.Together")
     @patch("app.services.processing_service.settings")
     def test_create_embeddings_api_failure(
@@ -488,8 +484,8 @@ class TestProcessingService:
         assert result.success is False
         assert "Clone failed" in result.error_message
 
-    @pytest.mark.asyncio
-    async def test_chunk_file_content(self, processing_service):
+
+    def test_chunk_file_content(self, processing_service):
         """Test file content chunking"""
         file_data = {
             "content": "\n".join([f"line {i}" for i in range(1, 201)]),  # 200 lines
@@ -497,7 +493,7 @@ class TestProcessingService:
         }
         context_id = "ctx123"
 
-        chunks = await processing_service._chunk_file_content(file_data, context_id)
+        chunks =  processing_service._chunk_file_content(file_data, context_id)
 
         assert len(chunks) > 0
 
@@ -516,17 +512,16 @@ class TestProcessingService:
         file_data = {"content": "", "path": "empty.py"}
         context_id = "ctx123"
 
-        chunks = await processing_service._chunk_file_content(file_data, context_id)
+        chunks =  processing_service._chunk_file_content(file_data, context_id)
 
         assert chunks == []
 
-    @pytest.mark.asyncio
-    async def test_chunk_file_content_whitespace_only(self, processing_service):
+    def test_chunk_file_content_whitespace_only(self, processing_service):
         """Test file content chunking with whitespace-only content"""
         file_data = {"content": "\n\n   \n\n", "path": "whitespace.py"}
         context_id = "ctx123"
 
-        chunks = await processing_service._chunk_file_content(file_data, context_id)
+        chunks = processing_service._chunk_file_content(file_data, context_id)
 
         assert chunks == []
 

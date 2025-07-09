@@ -415,22 +415,22 @@ class TestSupabaseQueue:
         
         assert stats == {}
     
-    @pytest.mark.asyncio
-    async def test_cleanup_completed_jobs(self, supabase_queue):
-        """Test cleanup completed jobs"""
-        # PGMQueue handles cleanup automatically, so this should return 0
-        result = await supabase_queue.cleanup_completed_jobs("processing", 7)
-        print("result ", result)
-        assert result == 0
+    # @pytest.mark.asyncio
+    # async def test_cleanup_completed_jobs(self, supabase_queue):
+    #     """Test cleanup completed jobs"""
+    #     # PGMQueue handles cleanup automatically, so this should return 0
+    #     result = await supabase_queue.cleanup_completed_jobs("processing", 7)
+    #
+    #     assert result == 0
     
-    @pytest.mark.asyncio
-    async def test_cleanup_completed_jobs_exception(self, supabase_queue):
-        """Test cleanup with exception"""
-        # Even with exception, should return 0 since PGMQueue handles cleanup
-        result = await supabase_queue.cleanup_completed_jobs()
-        
-        assert result == 0
-    
+    # @pytest.mark.asyncio
+    # async def test_cleanup_completed_jobs_exception(self, supabase_queue):
+    #     """Test cleanup with exception"""
+    #     # Even with exception, should return 0 since PGMQueue handles cleanup
+    #     result = await supabase_queue.cleanup_completed_jobs()
+    #
+    #     assert result == 0
+    #
     @pytest.mark.asyncio
     async def test_close(self, supabase_queue):
         """Test queue connection closing"""

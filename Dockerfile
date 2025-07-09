@@ -29,6 +29,8 @@ COPY app ./app
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir . \
     && chown -R appuser:appgroup /app \
+    && chmod 755 app/repos \
+    && chown appuser:appgroup app/repos \
     && chmod +x app/main.py
 
 # Switch to the non-root user (this should be LAST)

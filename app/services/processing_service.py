@@ -119,7 +119,7 @@ class ProcessingService:
                 )
             # Process files into chunks
             chunks = self._process_files_to_chunks(
-                files, context_id, repo.id, repo.user_id
+                files
             )
             embeddings =  self._create_embeddings(
                 chunks,
@@ -192,7 +192,7 @@ class ProcessingService:
         return test
 
     def _process_files_to_chunks(
-        self, files: List[Dict], context_id: str, repo_id: str, user_id: str
+        self, files: List[Dict]
     ) -> List[Dict]:
         """Process files into code chunks"""
         chunks = []
@@ -202,7 +202,7 @@ class ProcessingService:
         chunks = text_splitter.split_documents(files)
         return chunks
 
-    async def _chunk_file_content(self, file_data: Dict, context_id: str) -> List[Dict]:
+    def _chunk_file_content(self, file_data: Dict, context_id: str) -> List[Dict]:
         """Chunk individual file content"""
         # Implementation for intelligent code chunking
         # This would involve:
