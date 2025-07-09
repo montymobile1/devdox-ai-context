@@ -271,30 +271,30 @@ class ProcessingService:
             together_client = Together(api_key=settings.TOGETHER_API_KEY)
 
             if chunks:
-                # TO DO shoule be changed
-                chunk = chunks[0]
                 try:
-                    response = together_client.embeddings.create(
-                        input=chunk.page_content,
-                        model=model_api_string,
-                    )
+                    # TO DO shoule be changed
+                   for chunk in chunks:
 
-                    embedding = {
-                        "chunk_id": str(
-                            uuid.uuid4()
-                        ),  # This would be set after chunk creation
-                        "embedding": response.data[0].embedding,
-                        "model_name": model_api_string,
-                        "model_version": "1.0",
-                        "vector_dimension": len(response.data[0].embedding),
-                        "content": chunk.page_content,
-                        "metadata": chunk.metadata,
-                        "file_name": chunk.metadata.get("file_name", ""),
-                        "file_path": chunk.metadata.get("file_path", ""),
-                        "file_path": chunk.metadata.get("source", ""),
-                        "file_size": chunk.metadata.get("file_size", 0),
-                    }
-                    embeddings.append(embedding)
+                        response = together_client.embeddings.create(
+                            input=chunk.page_content,
+                            model=model_api_string,
+                        )
+
+                        embedding = {
+                            "chunk_id": str(
+                                uuid.uuid4()
+                            ),  # This would be set after chunk creation
+                            "embedding": response.data[0].embedding,
+                            "model_name": model_api_string,
+                            "model_version": "1.0",
+                            "vector_dimension": len(response.data[0].embedding),
+                            "content": chunk.page_content,
+                            "metadata": chunk.metadata,
+                            "file_name": chunk.metadata.get("file_name", ""),
+                            "file_path": chunk.metadata.get("file_path", ""),
+                            "file_size": chunk.metadata.get("file_size", 0),
+                        }
+                        embeddings.append(embedding)
 
                 except Exception as e:
                     logger.error(f"Failed to create embedding for chunk: {e}")

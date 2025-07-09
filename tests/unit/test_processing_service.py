@@ -133,7 +133,6 @@ class TestProcessingService:
             assert repo_path == expected_path
             mock_rmtree.assert_not_called()
 
-    @pytest.mark.asyncio
     @patch("app.services.processing_service.GitLoader")
     def test_clone_and_process_repository_success(
         self, mock_git_loader, processing_service
@@ -163,7 +162,6 @@ class TestProcessingService:
             mock_git_loader.assert_called_once()
             mock_loader_instance.load.assert_called_once()
 
-    @pytest.mark.asyncio
     @patch("app.services.processing_service.GitLoader")
     def test_clone_and_process_repository_failure(
         self, mock_git_loader, processing_service
@@ -223,7 +221,6 @@ class TestProcessingService:
             )
             mock_create_client.assert_called_once_with(git_provider, "decrypted_token")
 
-    @pytest.mark.asyncio
     @patch("app.services.processing_service.RecursiveCharacterTextSplitter")
     def test_process_files_to_chunks(
         self, mock_text_splitter, processing_service
@@ -281,7 +278,6 @@ class TestProcessingService:
             result = processing_service._detect_language(file_path)
             assert result == expected_lang, f"Failed for {file_path}"
 
-    @pytest.mark.asyncio
     @patch("app.services.processing_service.Together")
     @patch("app.services.processing_service.settings")
     def test_create_embeddings_success(
