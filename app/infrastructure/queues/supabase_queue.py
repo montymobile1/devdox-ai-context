@@ -136,6 +136,135 @@ class SupabaseQueue:
             )
             raise
 
+    async def _process_messages(
+            self,
+            messages: List[Message],
+            queue_name: str,
+            job_types: List[str],
+            worker_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Process messages and return the first valid job"""
+        for message in messages:
+            try:
+                job_data = await self._process_single_message(message, queue_name, job_types, worker_id)
+                if job_data:
+                    return job_data
+            except Exception as e:
+                logger.error(f"Error processing message {message.msg_id}: {str(e)}")
+                continue
+        return None
+
+    async def _process_single_message(
+            self,
+            message: Message,
+            queue_name: str,
+            job_types: List[str],
+            worker_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Process a single message and return job data if valid"""
+        message_data = message.message
+
+        # Early return if job type doesn't match filter
+        if not self._is_job_type_allowed(message_data, job_types):
+            return None
+
+        # Handle jobs that exceeded max attempts
+        if await self._handle_max_attempts_exceeded(message_data, message.msg_id, queue_name):
+            return None
+
+        # Skip jobs that aren't ready to be processed yet
+        if not self._is_job_ready_for_processing(message_data):
+            return None
+
+        # Parse and construct job data
+        return self._construct_job_data(message, message_data, queue_name, worker_id)
+
+    def _parse_json_field(self, field_value: Any) -> Any:
+        """Parse JSON field, returning original value if parsing fails"""
+        if not isinstance(field_value, str):
+            return field_value
+
+        try:
+            return json.loads(field_value)
+        except json.JSONDecodeError:
+            return field_value
+
+    def _construct_job_data(
+            self,
+            message: Message,
+            message_data: Dict[str, Any],
+            queue_name: str,
+            worker_id: str
+    ) -> Dict[str, Any]:
+        """Construct job data from message"""
+        payload = self._parse_json_field(message_data.get("payload"))
+        config = self._parse_json_field(message_data.get("config", "{}"))
+        attempts = message_data.get("attempts", 0)
+
+        job_data = {
+            "id": str(message.msg_id),
+            "pgmq_msg_id": message.msg_id,
+            "job_type": message_data.get("job_type"),
+            "payload": payload,
+            "config": config,
+            "priority": message_data.get("priority", 1),
+            "attempts": attempts + 1,
+            "max_attempts": message_data.get("max_attempts", self.max_retries),
+            "user_id": message_data.get("user_id"),
+            "scheduled_at": message_data.get("scheduled_at"),
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "worker_id": worker_id,
+            "queue_name": queue_name,
+        }
+
+        logger.info(
+            f"Job {job_data['id']} dequeued for processing",
+            extra={
+                "job_id": job_data["id"],
+                "job_type": job_data["job_type"],
+                "attempts": job_data["attempts"],
+                "worker_id": worker_id,
+            },
+        )
+
+        return job_data
+
+
+    def _is_job_type_allowed(self, message_data: Dict[str, Any], job_types: List[str]) -> bool:
+        """Check if job type is in the allowed list"""
+        if not job_types:
+            return True
+        return message_data.get("job_type") in job_types
+
+    async def _handle_max_attempts_exceeded(
+            self,
+            message_data: Dict[str, Any],
+            msg_id: int,
+            queue_name: str
+    ) -> bool:
+        """Handle jobs that exceeded max attempts. Returns True if job was archived"""
+        attempts = message_data.get("attempts", 0)
+        max_attempts = message_data.get("max_attempts", self.max_retries)
+
+        if attempts >= max_attempts:
+            await self.queue.archive(queue_name, msg_id)
+            return True
+        return False
+
+    def _is_job_ready_for_processing(self, message_data: Dict[str, Any]) -> bool:
+        """Check if job is ready to be processed based on scheduled_at"""
+        scheduled_at_str = message_data.get("scheduled_at")
+        if not scheduled_at_str:
+            return True
+
+        try:
+            scheduled_at = datetime.fromisoformat(scheduled_at_str.replace("Z", "+00:00"))
+            return scheduled_at <= datetime.now(timezone.utc)
+        except ValueError:
+            logger.error(f"Invalid scheduled_at format: {scheduled_at_str}, processing anyway.")
+            return True
+
+
     async def dequeue(
         self,
         queue_name: str = None,
@@ -168,89 +297,8 @@ class SupabaseQueue:
             )
             if not messages:
                 return None
+            return await self._process_messages(messages, effective_queue_name, job_types, worker_id)
 
-            # Process the first available message
-            for message in messages:
-                try:
-                    # Parse the message data
-                    message_data = message.message
-                    # Filter by job types if specified
-                    if job_types and message_data.get("job_type") not in job_types:
-                        break
-
-                    # Check if job hasn't exceeded max attempts
-                    attempts = message_data.get("attempts", 0)
-                    max_attempts = message_data.get("max_attempts", self.max_retries)
-                    if attempts >= max_attempts:
-                        # Archive the job as permanently failed
-                        await self.queue.archive(effective_queue_name, message.msg_id)
-                        continue
-
-                        # Check if job is ready to be processed (scheduled_at)
-                        scheduled_at_str = message_data.get("scheduled_at")
-                        if scheduled_at_str:
-                            try:
-                                scheduled_at = datetime.fromisoformat(
-                                    scheduled_at_str.replace("Z", "+00:00")
-                                )
-                                if scheduled_at > datetime.now(timezone.utc):
-                                    continue  # Skip processing this message for now
-                            except ValueError:
-                                logger.error(
-                                    f"Invalid scheduled_at format: {scheduled_at_str}, processing anyway."
-                                )
-
-                    # Parse payload and config
-                    try:
-                        payload = (
-                            json.loads(message_data["payload"])
-                            if isinstance(message_data["payload"], str)
-                            else message_data["payload"]
-                        )
-
-                        config = (
-                            json.loads(message_data.get("config", "{}"))
-                            if isinstance(message_data.get("config"), str)
-                            else message_data.get("config", {})
-                        )
-                    except json.JSONDecodeError as e:
-                        payload = message_data["payload"]
-                        config = message_data.get("config", {})
-
-                    job_data = {
-                        "id": str(message.msg_id),
-                        "pgmq_msg_id": message.msg_id,  # Keep reference to PGMQueue message ID
-                        "job_type": message_data.get("job_type"),
-                        "payload": payload,
-                        "config": config,
-                        "priority": message_data.get("priority", 1),
-                        "attempts": attempts
-                        + 1,  # Increment for this processing attempt
-                        "max_attempts": max_attempts,
-                        "user_id": message_data.get("user_id"),
-                        "scheduled_at": message_data.get("scheduled_at"),
-                        "started_at": datetime.now(timezone.utc).isoformat(),
-                        "worker_id": worker_id,
-                        "queue_name": effective_queue_name,
-                    }
-
-                    logger.info(
-                        f"Job {job_data['id']} dequeued for processing",
-                        extra={
-                            "job_id": job_data["id"],
-                            "job_type": job_data["job_type"],
-                            "attempts": job_data["attempts"],
-                            "worker_id": worker_id,
-                        },
-                    )
-
-                    return job_data
-
-                except Exception as e:
-                    logger.error(f"Error processing message {message.msg_id}: {str(e)}")
-                    continue
-
-            return None
 
         except Exception as e:
             logger.error(
@@ -276,14 +324,12 @@ class SupabaseQueue:
             await self._ensure_initialized()
             msg_id = job_data.get("pgmq_msg_id")
             queue_name = job_data.get("queue_name", self.table_name)
-
             if not msg_id:
                 logger.error("No pgmq_msg_id found in job data")
                 return False
 
             # Delete the message from the queue (marks as completed)
             success = await self.queue.delete(queue_name, msg_id)
-
             if success:
                 logger.info(f"Job {job_data.get('id')} marked as completed")
                 return True
