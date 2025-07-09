@@ -3,7 +3,7 @@ Test cases for queue service
 """
 import pytest
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 
@@ -71,7 +71,14 @@ class TestSupabaseQueue:
                 password="test_password",
                 database="test_db"
             )
-    
+
+    def test_init_with_custom_table_name(self, queue_config):
+        """Test SupabaseQueue initialization with custom table name"""
+        with patch('app.infrastructure.queues.supabase_queue.PGMQueue'):
+            queue = SupabaseQueue(**queue_config, table_name="custom_queue")
+            assert queue.table_name == "custom_queue"
+
+
     @pytest.mark.asyncio
     async def test_ensure_initialized_first_time(self, supabase_queue):
         """Test initialization on first call"""
@@ -178,7 +185,230 @@ class TestSupabaseQueue:
             await supabase_queue.enqueue("processing", {"test": "data"})
         
         assert "Send failed" in str(exc_info.value)
-    
+
+    def test_parse_json_field_valid_json(self, supabase_queue):
+        """Test _parse_json_field with valid JSON string"""
+        result = supabase_queue._parse_json_field('{"key": "value"}')
+        assert result == {"key": "value"}
+
+    def test_parse_json_field_invalid_json(self, supabase_queue):
+        """Test _parse_json_field with invalid JSON string"""
+        result = supabase_queue._parse_json_field('invalid json')
+        assert result == 'invalid json'
+
+    def test_parse_json_field_non_string(self, supabase_queue):
+        """Test _parse_json_field with non-string input"""
+        result = supabase_queue._parse_json_field({"already": "dict"})
+        assert result == {"already": "dict"}
+
+    def test_is_job_type_allowed_no_filter(self, supabase_queue):
+        """Test _is_job_type_allowed with no job type filter"""
+        message_data = {"job_type": "any_type"}
+        result = supabase_queue._is_job_type_allowed(message_data, [])
+        assert result is True
+
+    def test_is_job_type_allowed_matching_filter(self, supabase_queue):
+        """Test _is_job_type_allowed with matching job type"""
+        message_data = {"job_type": "allowed_type"}
+        result = supabase_queue._is_job_type_allowed(message_data, ["allowed_type", "other_type"])
+        assert result is True
+
+    def test_is_job_type_allowed_non_matching_filter(self, supabase_queue):
+        """Test _is_job_type_allowed with non-matching job type"""
+        message_data = {"job_type": "forbidden_type"}
+        result = supabase_queue._is_job_type_allowed(message_data, ["allowed_type", "other_type"])
+        assert result is False
+
+    def test_is_job_ready_for_processing_no_schedule(self, supabase_queue):
+        """Test _is_job_ready_for_processing with no scheduled_at"""
+        message_data = {}
+        result = supabase_queue._is_job_ready_for_processing(message_data)
+        assert result is True
+
+    def test_is_job_ready_for_processing_past_schedule(self, supabase_queue):
+        """Test _is_job_ready_for_processing with past scheduled_at"""
+        past_time = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        message_data = {"scheduled_at": past_time}
+        result = supabase_queue._is_job_ready_for_processing(message_data)
+        assert result is True
+
+    def test_is_job_ready_for_processing_future_schedule(self, supabase_queue):
+        """Test _is_job_ready_for_processing with future scheduled_at"""
+        future_time = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        message_data = {"scheduled_at": future_time}
+        result = supabase_queue._is_job_ready_for_processing(message_data)
+        assert result is False
+
+    def test_is_job_ready_for_processing_invalid_format(self, supabase_queue):
+        """Test _is_job_ready_for_processing with invalid date format"""
+        message_data = {"scheduled_at": "invalid_date_format"}
+        result = supabase_queue._is_job_ready_for_processing(message_data)
+        assert result is True  # Should default to True on parse error
+
+    @pytest.mark.asyncio
+    async def test_handle_max_attempts_exceeded_not_exceeded(self, supabase_queue):
+        """Test _handle_max_attempts_exceeded when attempts not exceeded"""
+        message_data = {"attempts": 2, "max_attempts": 3}
+        result = await supabase_queue._handle_max_attempts_exceeded(message_data, "msg_123", "test_queue")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_handle_max_attempts_exceeded_exceeded(self, supabase_queue):
+        """Test _handle_max_attempts_exceeded when attempts exceeded"""
+        message_data = {"attempts": 3, "max_attempts": 3}
+        supabase_queue.queue.archive = AsyncMock(return_value=True)
+
+        result = await supabase_queue._handle_max_attempts_exceeded(message_data, "msg_123", "test_queue")
+
+        assert result is True
+        supabase_queue.queue.archive.assert_called_once_with("test_queue", "msg_123")
+
+    def test_construct_job_data(self, supabase_queue):
+        """Test _construct_job_data method"""
+        mock_message = MagicMock()
+        mock_message.msg_id = "msg_123"
+
+        message_data = {
+            "job_type": "test_job",
+            "payload": '{"key": "value"}',
+            "config": '{"setting": "value"}',
+            "priority": 5,
+            "attempts": 2,
+            "max_attempts": 5,
+            "user_id": "user123",
+            "scheduled_at": "2024-01-01T00:00:00Z"
+        }
+
+        result = supabase_queue._construct_job_data(mock_message, message_data, "test_queue", "worker_1")
+
+        assert result["id"] == "msg_123"
+        assert result["pgmq_msg_id"] == "msg_123"
+        assert result["job_type"] == "test_job"
+        assert result["payload"] == {"key": "value"}
+        assert result["config"] == {"setting": "value"}
+        assert result["priority"] == 5
+        assert result["attempts"] == 3  # Should increment
+        assert result["max_attempts"] == 5
+        assert result["user_id"] == "user123"
+        assert result["worker_id"] == "worker_1"
+        assert result["queue_name"] == "test_queue"
+        assert "started_at" in result
+
+    @pytest.mark.asyncio
+    async def test_process_single_message_valid(self, supabase_queue):
+        """Test _process_single_message with valid message"""
+        mock_message = MagicMock()
+        mock_message.msg_id = "msg_123"
+        mock_message.message = {
+            "job_type": "test_job",
+            "payload": '{"key": "value"}',
+            "attempts": 1,
+            "max_attempts": 3
+        }
+
+        result = await supabase_queue._process_single_message(
+            mock_message, "test_queue", ["test_job"], "worker_1"
+        )
+
+        assert result is not None
+        assert result["job_type"] == "test_job"
+        assert result["payload"] == {"key": "value"}
+
+    @pytest.mark.asyncio
+    async def test_process_single_message_wrong_job_type(self, supabase_queue):
+        """Test _process_single_message with wrong job type"""
+        mock_message = MagicMock()
+        mock_message.msg_id = "msg_123"
+        mock_message.message = {
+            "job_type": "wrong_job",
+            "payload": '{"key": "value"}'
+        }
+
+        result = await supabase_queue._process_single_message(
+            mock_message, "test_queue", ["allowed_job"], "worker_1"
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_process_single_message_max_attempts_exceeded(self, supabase_queue):
+        """Test _process_single_message with max attempts exceeded"""
+        mock_message = MagicMock()
+        mock_message.msg_id = "msg_123"
+        mock_message.message = {
+            "job_type": "test_job",
+            "attempts": 5,
+            "max_attempts": 3
+        }
+
+        supabase_queue.queue.archive = AsyncMock(return_value=True)
+
+        result = await supabase_queue._process_single_message(
+            mock_message, "test_queue", ["test_job"], "worker_1"
+        )
+
+        assert result is None
+        supabase_queue.queue.archive.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_process_single_message_not_ready(self, supabase_queue):
+        """Test _process_single_message with future scheduled time"""
+        mock_message = MagicMock()
+        mock_message.msg_id = "msg_123"
+        future_time = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        mock_message.message = {
+            "job_type": "test_job",
+            "scheduled_at": future_time,
+            "attempts": 1,
+            "max_attempts": 3
+        }
+
+        result = await supabase_queue._process_single_message(
+            mock_message, "test_queue", ["test_job"], "worker_1"
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_process_messages_multiple_messages(self, supabase_queue):
+        """Test _process_messages with multiple messages"""
+        # First message - wrong job type
+        mock_message1 = MagicMock()
+        mock_message1.msg_id = "msg_1"
+        mock_message1.message = {"job_type": "wrong_job"}
+
+        # Second message - valid
+        mock_message2 = MagicMock()
+        mock_message2.msg_id = "msg_2"
+        mock_message2.message = {
+            "job_type": "test_job",
+            "payload": '{"key": "value"}',
+            "attempts": 1,
+            "max_attempts": 3
+        }
+
+        messages = [mock_message1, mock_message2]
+
+        result = await supabase_queue._process_messages(
+            messages, "test_queue", ["test_job"], "worker_1"
+        )
+
+        assert result is not None
+        assert result["job_type"] == "test_job"
+
+    @pytest.mark.asyncio
+    async def test_process_messages_no_valid_messages(self, supabase_queue):
+        """Test _process_messages with no valid messages"""
+        mock_message = MagicMock()
+        mock_message.msg_id = "msg_1"
+        mock_message.message = {"job_type": "wrong_job"}
+
+        result = await supabase_queue._process_messages(
+            [mock_message], "test_queue", ["test_job"], "worker_1"
+        )
+
+        assert result is None
+
     @pytest.mark.asyncio
     async def test_dequeue_success(self, supabase_queue):
         """Test successful job dequeuing"""
