@@ -25,7 +25,7 @@ flowchart TD
 
 ---
 
-### 📝 How the System Works
+### How the System Works
 
 When you run the project, it initializes the environment and starts a group of background workers. These workers **run continuously** and wait for tasks to appear in the queue.
 
@@ -39,6 +39,8 @@ Each task includes the URL of a Git repository to process. Once a job is picked 
 If no job is available, the worker simply waits and retries. On shutdown, the system stops all workers and cleans up resources.
 
 This design allows the system to scale easily and serve as a backend for AI tools that require real-time understanding of code.
+
+---
 
 ---
 
@@ -94,69 +96,29 @@ The folders below are arranged by importance and logical flow, starting with the
 ```
 
 ---
-## ⚙️ Getting Started
-
-Follow these steps to get the project running on your local machine.
-
----
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/your-org/devdox-ai-context.git
-cd devdox-ai-context
-```
-
----
-
-### 2. Create a Virtual Environment
-
-```bash
-python -m venv .venv
-source .venv/bin/activate   # On Windows: .venv\Scripts\activate
-```
-
----
-
-### 3. Install the Project (with Dev Tools)
-
-```bash
-pip install .[dev]
-```
-
-This installs the project as a package, along with tools used for development and testing.
-
----
-
-### 4. Copy and Edit Environment File
-
-```bash
-cp .env.example .env
-```
-
-Then open `.env` in your editor and fill in the required values (queue URLs, database paths, tokens, etc.).
-
-We’ll explain the variables below.
-
----
-
-### 5. Run the Application
-
-```bash
-python main.py
-```
-
-This will start the system and launch the background workers.
 
 ---
 
 ## ⚠️ Prerequisites & Supabase Queue Setup
 
-Before running the service, you must have a working **Supabase** project with the following setup:
+Before running the service, make sure the following prerequisites are met:
 
 ---
 
-### Required Supabase Configuration
+### Required Python Version
+
+This project requires **Python 3.12**.
+
+Make sure you have Python 3.12 installed and selected in your virtual environment:
+
+```bash
+python --version
+# Should return: Python 3.12.x
+```
+
+---
+
+### Supabase Configuration
 
 1. **Enable PostgREST**
 
@@ -213,6 +175,63 @@ The worker expects incoming jobs to look like this:
 ### Pro Tip (for testing)
 
 You can manually insert jobs into your Supabase queue table for testing purposes, or set up a simple job producer using Python or PostgREST.
+
+---
+
+---
+## ⚙️ Getting Started
+
+Follow these steps to get the project running on your local machine.
+
+---
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/your-org/devdox-ai-context.git
+cd devdox-ai-context
+```
+
+---
+
+### 2. Create a Virtual Environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # On Windows: .venv\Scripts\activate
+```
+
+---
+
+### 3. Install the Project (with Dev Tools)
+
+```bash
+pip install .[dev]
+```
+
+This installs the project as a package, along with tools used for development and testing.
+
+---
+
+### 4. Copy and Edit Environment File
+
+```bash
+cp .env.example .env
+```
+
+Then open `.env` in your editor and fill in the required values (queue URLs, database paths, tokens, etc.).
+
+We’ll explain the variables below.
+
+---
+
+### 5. Run the Application
+
+```bash
+python main.py
+```
+
+This will start the system and launch the background workers.
 
 ---
 
