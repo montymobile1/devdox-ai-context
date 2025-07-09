@@ -107,23 +107,16 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-  dependency-review:
-      runs-on: ubuntu-latest
-      permissions:
-        contents: read
-        # Write permissions for pull-requests are required for using the `comment-summary-in-pr` option, comment out if you aren't using this option
-        pull-requests: write
-      steps:
-        - name: 'Checkout repository'
-          uses: actions/checkout@v4
-        - name: 'Dependency Review'
-          uses: actions/dependency-review-action@v4
-          # Commonly enabled options, see https://github.com/actions/dependency-review-action#configuration-options for all available options.
-          with:
-            comment-summary-in-pr: always
-          #   fail-on-severity: moderate
-          #   deny-licenses: GPL-1.0-or-later, LGPL-2.0-or-later
-          #   retry-on-snapshot-warnings: true
+  gitleaks-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          #GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}} # need to check if will work
 
   sonarqube:
     name: SonarQube
