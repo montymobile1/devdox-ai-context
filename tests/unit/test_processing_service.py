@@ -135,7 +135,7 @@ class TestProcessingService:
 
     @pytest.mark.asyncio
     @patch("app.services.processing_service.GitLoader")
-    async def test_clone_and_process_repository_success(
+    def test_clone_and_process_repository_success(
         self, mock_git_loader, processing_service
     ):
         """Test successful repository cloning and processing"""
@@ -155,7 +155,7 @@ class TestProcessingService:
         with tempfile.TemporaryDirectory() as tmp_dir:
             processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-            result = await processing_service.clone_and_process_repository(
+            result = processing_service.clone_and_process_repository(
                 repo_url, tmp_dir, branch  # Use tmp_dir instead of hardcoded path
             )
 
@@ -165,7 +165,7 @@ class TestProcessingService:
 
     @pytest.mark.asyncio
     @patch("app.services.processing_service.GitLoader")
-    async def test_clone_and_process_repository_failure(
+    def test_clone_and_process_repository_failure(
         self, mock_git_loader, processing_service
     ):
         """Test repository cloning failure"""
@@ -175,7 +175,7 @@ class TestProcessingService:
         with tempfile.TemporaryDirectory() as tmp_dir:
             processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-            result = await processing_service.clone_and_process_repository(
+            result = processing_service.clone_and_process_repository(
                 repo_url, tmp_dir
             )
 
@@ -225,7 +225,7 @@ class TestProcessingService:
 
     @pytest.mark.asyncio
     @patch("app.services.processing_service.RecursiveCharacterTextSplitter")
-    async def test_process_files_to_chunks(
+    def test_process_files_to_chunks(
         self, mock_text_splitter, processing_service
     ):
         """Test processing files to chunks"""
@@ -254,7 +254,7 @@ class TestProcessingService:
         mock_splitter_instance.split_documents.return_value = mock_chunks
         mock_text_splitter.return_value = mock_splitter_instance
 
-        result = await processing_service._process_files_to_chunks(
+        result =  processing_service._process_files_to_chunks(
             files, context_id, repo_id, user_id
         )
 
@@ -286,7 +286,7 @@ class TestProcessingService:
     @pytest.mark.asyncio
     @patch("app.services.processing_service.Together")
     @patch("app.services.processing_service.settings")
-    async def test_create_embeddings_success(
+    def test_create_embeddings_success(
         self, mock_settings, mock_together_class, processing_service
     ):
         """Test successful embedding creation"""
@@ -310,7 +310,7 @@ class TestProcessingService:
 
         mock_settings.TOGETHER_API_KEY = "test_key"
 
-        result = await processing_service._create_embeddings(chunks)
+        result =  processing_service._create_embeddings(chunks)
         assert len(result) == 1
         embedding = result[0]
         assert "chunk_id" in embedding
@@ -322,13 +322,13 @@ class TestProcessingService:
 
     @pytest.mark.asyncio
     @patch("app.services.processing_service.Together")
-    async def test_create_embeddings_empty_chunks(
+    def test_create_embeddings_empty_chunks(
         self, mock_together_class, processing_service
     ):
         """Test embedding creation with empty chunks"""
         chunks = []
 
-        result = await processing_service._create_embeddings(chunks)
+        result =  processing_service._create_embeddings(chunks)
 
         assert result == []
         mock_together_class.assert_not_called()
@@ -336,7 +336,7 @@ class TestProcessingService:
     @pytest.mark.asyncio
     @patch("app.services.processing_service.Together")
     @patch("app.services.processing_service.settings")
-    async def test_create_embeddings_api_failure(
+    def test_create_embeddings_api_failure(
         self, mock_settings, mock_together_class, processing_service
     ):
         """Test embedding creation with API failure"""
@@ -349,7 +349,7 @@ class TestProcessingService:
         mock_together_class.return_value = mock_client
 
         mock_settings.TOGETHER_API_KEY = "test_key"
-        result = await processing_service._create_embeddings(chunks)
+        result =  processing_service._create_embeddings(chunks)
 
         assert result == []
 
@@ -380,17 +380,17 @@ class TestProcessingService:
         with tempfile.TemporaryDirectory() as tmp_dir:
             processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-        processing_service.clone_and_process_repository = AsyncMock(
+        processing_service.clone_and_process_repository = MagicMock(
             return_value=[
                 Document(page_content="test content", metadata={"source": "test.py"})
             ]
         )
-        processing_service._process_files_to_chunks = AsyncMock(
+        processing_service._process_files_to_chunks = MagicMock(
             return_value=[
                 Document(page_content="chunk1", metadata={"source": "test.py"})
             ]
         )
-        processing_service._create_embeddings = AsyncMock(
+        processing_service._create_embeddings = MagicMock(
             return_value=[
                 {"chunk_id": "chunk1", "embedding": [0.1, 0.2], "content": "chunk1"}
             ]
@@ -479,7 +479,7 @@ class TestProcessingService:
         with tempfile.TemporaryDirectory() as tmp_dir:
             processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-        processing_service.clone_and_process_repository = AsyncMock(
+        processing_service.clone_and_process_repository = MagicMock(
             side_effect=Exception("Clone failed")
         )
 
@@ -585,10 +585,10 @@ class TestProcessingServiceIntegration:
         with tempfile.TemporaryDirectory() as tmp_dir:
             service.prepare_repository = AsyncMock(return_value=tmp_dir)
 
-        service.clone_and_process_repository = AsyncMock(return_value=[])
+        service.clone_and_process_repository = MagicMock(return_value=[])
 
-        service._process_files_to_chunks = AsyncMock(return_value=[])
-        service._create_embeddings = AsyncMock(return_value=[])
+        service._process_files_to_chunks = MagicMock(return_value=[])
+        service._create_embeddings = MagicMock(return_value=[])
 
         # Test payload
         payload = {

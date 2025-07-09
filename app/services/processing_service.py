@@ -54,7 +54,7 @@ class ProcessingService:
 
         return repo_path
 
-    async def clone_and_process_repository(
+    def clone_and_process_repository(
         self, repo_url: str, repo_path: str, branch: str = "main"
     ):
         # Clone repository using LangChain's GitLoader
@@ -103,7 +103,7 @@ class ProcessingService:
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
 
-            files = await self.clone_and_process_repository(
+            files = self.clone_and_process_repository(
                 repo.html_url, relative_path, job_payload.get("branch", "production")
             )
             repo_local = Repo(relative_path)
@@ -118,10 +118,10 @@ class ProcessingService:
                     error_message="Repository already processed",
                 )
             # Process files into chunks
-            chunks = await self._process_files_to_chunks(
+            chunks = self._process_files_to_chunks(
                 files, context_id, repo.id, repo.user_id
             )
-            embeddings = await self._create_embeddings(
+            embeddings =  self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
@@ -191,7 +191,7 @@ class ProcessingService:
         test = self.git_client_factory.create_client(git_provider, decrypted_token)
         return test
 
-    async def _process_files_to_chunks(
+    def _process_files_to_chunks(
         self, files: List[Dict], context_id: str, repo_id: str, user_id: str
     ) -> List[Dict]:
         """Process files into code chunks"""
@@ -259,7 +259,7 @@ class ProcessingService:
 
         return "text"
 
-    async def _create_embeddings(
+    def _create_embeddings(
         self,
         chunks: List[Document],
         model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",

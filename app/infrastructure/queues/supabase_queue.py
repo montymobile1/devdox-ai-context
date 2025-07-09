@@ -432,7 +432,7 @@ class SupabaseQueue:
             await self._ensure_initialized()
 
             effective_queue_name = queue_name or self.table_name
-
+            #metrics = await self.queue.metrics(effective_queue_name)
             # PGMQueue doesn't have a direct cleanup method for old messages
             # This would typically be handled by database maintenance or custom queries
             # For now, we'll return 0 and log that cleanup is not implemented

@@ -11,7 +11,7 @@ from cryptography.fernet import Fernet
 
 from app.core.container import Container
 from app.core.config import TORTOISE_ORM
-from tests.utils import TestDataFactory, MockFactory
+from utils import TestDataFactory, MockFactory
 
 
 # Environment setup for testing
