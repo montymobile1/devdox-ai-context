@@ -117,6 +117,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}} # need to check if will work
+          GITLEAKS_ARGS: --no-git
 
   sonarqube:
     name: SonarQube
