@@ -1,3 +1,8 @@
-[rules.allowlist]
+title = "gitleaks config"
+
+[allowlist]
 description = "ignore commits"
-commits = [ "debaf15dbe72927a6bc9f2eb3b9080e6e9b06d4b", "ed51a9c6711c2262d421aaa89f756cb8d4a0a245"]
+commits = [
+    "debaf15dbe72927a6bc9f2eb3b9080e6e9b06d4b",
+    "ed51a9c6711c2262d421aaa89f756cb8d4a0a245"
+]
