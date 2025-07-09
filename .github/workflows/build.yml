@@ -112,12 +112,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 1  # Only fetch current commit
+          fetch-depth: 0  # Only fetch current commit
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}} # need to check if will work
-          GITLEAKS_ARGS: --no-git
+          GITLEAKS_ARGS: --log-opts="--max-count=1"
 
   sonarqube:
     name: SonarQube
