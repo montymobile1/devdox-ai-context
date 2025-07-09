@@ -1,3 +1,7 @@
+stages:
+  - build
+  - test
+
 name: Build
 on:
   push:
@@ -7,6 +11,7 @@ on:
     types: [opened, synchronize, reopened]
 jobs:
   analyze:
+    stage: build
     runs-on: ubuntu-latest
     permissions:
       # required for all workflows
@@ -20,6 +25,7 @@ jobs:
 
   sonarqube:
     name: SonarQube
+    stage: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
