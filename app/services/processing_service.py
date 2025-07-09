@@ -156,7 +156,7 @@ class ProcessingService:
             logger.error(f"Processing failed for context {context_id}: {str(e)}")
 
             await self.context_repository.update_status(
-                str(job_payload["repo_id"]),
+                str(repo.id),
                 "failed",
                 processing_end_time=datetime.now(timezone.utc),
                 total_files=0,
@@ -183,8 +183,11 @@ class ProcessingService:
 
         # Decrypt the stored token
         user = await self.user_info.find_by_user_id(user_id)
+        
+        decrypted_encryption_salt = self.encryption_service.decrypt(user.encryption_salt)
+        
         decrypted_token = self.encryption_service.decrypt_for_user(
-            git_config.token_value, user.encryption_salt
+            git_config.token_value, decrypted_encryption_salt
         )
 
         # Create git client

@@ -110,9 +110,17 @@ class WorkerService:
 
 
 def setup_signal_handlers(service: WorkerService):
-    """Setup graceful shutdown signal handlers"""
+    """
+        Handles the graceful shutdown of an operation on:
+            - Interruption (SIGINT) Sent by pressing `Ctrl+C` in the terminal.
+            - Termination (SIGTERM) Sent by `kill` or system shutdowns (common in Docker, systemd, etc.).
+        It calls the shutdown operation on any of these operations.
+    """
 
     def signal_handler(signum, frame):
+        """
+            The Handler called to kick in the graceful shutdown operation
+        """
         logging.info(f"Received signal {signum}, initiating shutdown...")
         asyncio.create_task(service.shutdown())
 
