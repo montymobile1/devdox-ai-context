@@ -1,4 +1,39 @@
-## 📦 Project Overview
+# DevDox Ai Context
+A backend API service for the DevDox Ai Context,built with FastAPI and Supabase, its a management service for code repositories
+
+---
+
+---
+
+## 📘 Table of Contents
+
+- [📘 Project Overview](#-project-overview)
+- [📘 System Architecture & Workflow](#-system-architecture--workflow)
+  - [📄 Microservices Architecture](#-microservices-architecture)
+  - [📄 DevDox-ai-context Workflow Diagram](#-devdox-ai-context-workflow-diagram)
+  - [📄 How the DevDox-ai-context System Works](#-how-the-devdox-ai-context-system-works)
+- [📘 Project Structure](#-project-structure)
+- [📘 Prerequisites & Supabase Queue Setup](#-prerequisites--supabase-queue-setup)
+  - [📄 Required Python Version](#-required-python-version)
+  - [📄 Supabase Configuration](#-supabase-configuration)
+  - [📄 Expected Job Format (JSON Payload)](#-expected-job-format-json-payload)
+  - [📄 Field Descriptions](#-field-descriptions)
+  - [📄 Pro Tip (for testing)](#-pro-tip-for-testing)
+- [📘 Getting Started](#-getting-started)
+  - [1. Clone the Repository](#1-clone-the-repository)
+  - [2. Create a Virtual Environment](#2-create-a-virtual-environment)
+  - [3. Install the Project (with Dev Tools)](#3-install-the-project-with-dev-tools)
+  - [4. Copy and Edit Environment File](#4-copy-and-edit-environment-file)
+  - [5. Run the Application](#5-run-the-application)
+- [📘 Environment Variables](#-environment-variables)
+  - [📄 Required (minimum configuration)](#-required-minimum-configuration)
+  - [📄 Optional (has default values)](#-optional-has-default-values)
+
+---
+
+---
+
+## 📘 Project Overview
 
 This project is a backend service built to support a **Retrieval-Augmented Generation (RAG)** system by processing Git repositories into structured, searchable vector data.
 
@@ -6,8 +41,32 @@ It listens to a task queue for new jobs. When triggered, it clones the specified
 
 This system handles the heavy lifting behind smart code search, AI documentation assistants, and LLM context pipelines.
 
-## 🧭 System Architecture & Workflow
+---
 
+---
+
+## 📘 System Architecture & Workflow
+
+### 📄 Microservices Architecture
+DevDox AI Portal API is built with:
+
+- **FastAPI**: Python web framework for API endpoints with automatic OpenAPI documentation
+- **Supabase**: Backend-as-a-Service for data storage, accessed via REST API
+- **SonarCloud**: Code quality scanning tool
+
+The API service is part of a larger system:
+
+| Repository           | Jira Project Key | Description                            |
+|----------------------|------------------|----------------------------------------|
+| devdox-ai            | DEV              | Main documentation project and roadmap |
+| devdox-ai-agent      | DV               | Core AI agent component                |
+| devdox-ai-context    | DAC              | Context building service               |
+| devdox-ai-portal     | DAP              | Frontend portal                        |
+| devdox-ai-portal-api | DAPA             | Backend portal API (this repository)   |
+
+---
+
+### 📄 DevDox-ai-context Workflow Diagram
 ```mermaid
 flowchart TD
     A[The system starts] --> B[Sets up environment and services]
@@ -22,10 +81,8 @@ flowchart TD
     A --> K[Receives shutdown signal]
     K --> L[Stops all workers and shuts down cleanly]
 ```
-
 ---
-
-### How the System Works
+### 📄 How the DevDox-ai-context System Works
 
 When you run the project, it initializes the environment and starts a group of background workers. These workers **run continuously** and wait for tasks to appear in the queue.
 
@@ -44,7 +101,7 @@ This design allows the system to scale easily and serve as a backend for AI tool
 
 ---
 
-## 🗂️ Project Structure
+## 📘 Project Structure
 
 The folders below are arranged by importance and logical flow, starting with the entry point and core logic.
 
@@ -99,13 +156,13 @@ The folders below are arranged by importance and logical flow, starting with the
 
 ---
 
-## ⚠️ Prerequisites & Supabase Queue Setup
+## 📘 Prerequisites & Supabase Queue Setup
 
 Before running the service, make sure the following prerequisites are met:
 
 ---
 
-### Required Python Version
+### 📄 Required Python Version
 
 This project requires **Python 3.12**.
 
@@ -118,7 +175,7 @@ python --version
 
 ---
 
-### Supabase Configuration
+### 📄 Supabase Configuration
 
 1. **Enable PostgREST**
 
@@ -132,7 +189,7 @@ You can name the table `processing`, or adapt the queue name in your code to mat
 
 ---
 
-### Expected Job Format (JSON Payload)
+### 📄 Expected Job Format (JSON Payload)
 
 The worker expects incoming jobs to look like this:
 
@@ -155,7 +212,7 @@ The worker expects incoming jobs to look like this:
 
 ---
 
-### Field Descriptions
+### 📄 Field Descriptions
 
 | Field           | Type     | Description                                                                 |
 |----------------|----------|-----------------------------------------------------------------------------|
@@ -172,14 +229,14 @@ The worker expects incoming jobs to look like this:
 
 ---
 
-### Pro Tip (for testing)
+### 📄 Pro Tip (for testing)
 
 You can manually insert jobs into your Supabase queue table for testing purposes, or set up a simple job producer using Python or PostgREST.
 
 ---
 
 ---
-## ⚙️ Getting Started
+## 📘 Getting Started
 
 Follow these steps to get the project running on your local machine.
 
@@ -235,11 +292,13 @@ This will start the system and launch the background workers.
 
 ---
 
-### 🔐 Environment Variables
+---
+
+## 📘 Environment Variables
 
 Below are the key environment variables used by the system. Most have sensible defaults, but a few are **required** to get the service running.
 
-#### Required (minimum configuration)
+#### 📄 Required (minimum configuration)
 
 These must be set in your `.env` file before running the app:
 
@@ -259,7 +318,7 @@ These must be set in your `.env` file before running the app:
 | `IS_PRODUCTION`      | Marks app as running in production       |
 ---
 
-#### Optional (has default values)
+#### 📄 Optional (has default values)
 
 These can be customized as needed, but have defaults:
 
