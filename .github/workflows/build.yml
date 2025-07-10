@@ -122,14 +122,16 @@ jobs:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
         with:
-          args: detect --redact --report-path=gitleaks-report.json --exit-code=1
+        args: detect --redact --report-path=gitleaks-report.json --exit-code=1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
       - name: Upload SARIF
+        if: always() && hashFiles('gitleaks-report.json') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: gitleaks-report.json
+              sarif_file: gitleaks-report.json
 
   tfsec:
     name: Run tfsec sarif report
