@@ -44,6 +44,7 @@ class TestProcessingService:
         """Mock encryption service"""
         encryption = MagicMock()
         encryption.decrypt_for_user = MagicMock(return_value="decrypted_token")
+        encryption.decrypt = MagicMock(return_value="decrypted_db_token")
         return encryption
 
     @pytest.fixture
@@ -217,7 +218,7 @@ class TestProcessingService:
             )
             mock_repositories["user"].find_by_user_id.assert_called_once_with(user_id)
             mock_encryption_service.decrypt_for_user.assert_called_once_with(
-                sample_git_config.token_value, sample_user.encryption_salt
+                sample_git_config.token_value, "decrypted_db_token"
             )
             mock_create_client.assert_called_once_with(git_provider, "decrypted_token")
 
