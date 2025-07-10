@@ -100,6 +100,10 @@ jobs:
   dependabot:
     runs-on: ubuntu-latest
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'owner/my_repo'
+    permissions:
+      contents: read
+      metadata: read
+      pull-requests: write  # Needed for dependabot actions
     steps:
       - name: Dependabot metadata
         id: metadata
@@ -110,7 +114,7 @@ jobs:
   gitleaks-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Only fetch current commit
       - uses: gitleaks/gitleaks-action@v2
