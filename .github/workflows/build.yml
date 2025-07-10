@@ -46,7 +46,7 @@ jobs:
           - language: python
             build-mode: none
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
-        # Use `c-cpp` to analyze code written in C, C++ or both
+        # Use `c-cpp` to analyze code written in C, C or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
         # Use 'javascript-typescript' to analyze code written in JavaScript, TypeScript or both
         # To learn more about changing the languages that are analyzed or customizing the build mode for your analysis,
@@ -71,7 +71,7 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
           # If you wish to specify custom queries, you can do so here or in a config file.
           # By default, queries listed here will override any specified in a config file.
-          # Prefix the list here with "+" to use these queries and those in the config file.
+          # Prefix the list here with "" to use these queries and those in the config file.
 
           # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
           # queries: security-extended,security-and-quality
@@ -103,7 +103,7 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'owner/my_repo'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'montymobile1/devdox-ai-context'
     steps:
       - name: Dependabot metadata
         id: metadata
@@ -113,15 +113,20 @@ jobs:
 
   gitleaks-scan:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Only fetch current commit
+          fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --redact --report-path=gitleaks-report.json --exit-code=1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}} # need to check if will work
-          GITLEAKS_ARGS: --log-opts="--max-count=1"
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
   tfsec:
     name: Run tfsec sarif report
     runs-on: ubuntu-latest
