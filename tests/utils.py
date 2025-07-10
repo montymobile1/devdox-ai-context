@@ -3,6 +3,7 @@ Test utilities and helper functions for the test suite
 """
 import asyncio
 import uuid
+import secrets
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, AsyncMock
 from typing import Dict, Any, List
@@ -444,7 +445,7 @@ class ConfigTestHelper:
             "SUPABASE_PORT": 5432,
             "SUPABASE_DB_NAME": "test_db",
             "TOGETHER_API_KEY": "test_together_key",
-            "SECRET_KEY": "test_secret_key_that_is_at_least_32_chars_long",
+            "SECRET_KEY": secrets.token_urlsafe(32),
             "WORKER_CONCURRENCY": 1,
             "QUEUE_BATCH_SIZE": 5,
             "QUEUE_POLLING_INTERVAL_SECONDS": 1,
