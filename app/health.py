@@ -143,7 +143,7 @@ async def check() -> int:
         # Return appropriate exit code
         return 0 if result["healthy"] else 1
 
-    except Exception as e:
+    except Exception:
         return 1
     finally:
         await Tortoise.close_connections()
