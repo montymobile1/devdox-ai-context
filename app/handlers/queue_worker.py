@@ -91,7 +91,7 @@ class QueueWorker:
         job_type = job.get("job_type", "unknown")
         payload = job.get("payload", {})
 
-        start_time = time.time()
+        _ = time.time()
         self.stats["current_job"] = job_id
 
         try:
