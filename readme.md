@@ -3,33 +3,14 @@ A backend API service for the DevDox Ai Context,built with FastAPI and Supabase,
 
 ---
 
----
-
 ## 📘 Table of Contents
 
 - [📘 Project Overview](#-project-overview)
 - [📘 System Architecture & Workflow](#-system-architecture--workflow)
-  - [📄 Microservices Architecture](#-microservices-architecture)
-  - [📄 DevDox-ai-context Workflow Diagram](#-devdox-ai-context-workflow-diagram)
-  - [📄 How the DevDox-ai-context System Works](#-how-the-devdox-ai-context-system-works)
 - [📘 Project Structure](#-project-structure)
 - [📘 Prerequisites & Supabase Queue Setup](#-prerequisites--supabase-queue-setup)
-  - [📄 Required Python Version](#-required-python-version)
-  - [📄 Supabase Configuration](#-supabase-configuration)
-  - [📄 Expected Job Format (JSON Payload)](#-expected-job-format-json-payload)
-  - [📄 Field Descriptions](#-field-descriptions)
-  - [📄 Pro Tip (for testing)](#-pro-tip-for-testing)
 - [📘 Getting Started](#-getting-started)
-  - [1. Clone the Repository](#1-clone-the-repository)
-  - [2. Create a Virtual Environment](#2-create-a-virtual-environment)
-  - [3. Install the Project (with Dev Tools)](#3-install-the-project-with-dev-tools)
-  - [4. Copy and Edit Environment File](#4-copy-and-edit-environment-file)
-  - [5. Run the Application](#5-run-the-application)
 - [📘 Environment Variables](#-environment-variables)
-  - [📄 Required (minimum configuration)](#-required-minimum-configuration)
-  - [📄 Optional (has default values)](#-optional-has-default-values)
-
----
 
 ---
 
@@ -40,8 +21,6 @@ This project is a backend service built to support a **Retrieval-Augmented Gener
 It listens to a task queue for new jobs. When triggered, it clones the specified repository, breaks its contents into smaller chunks, and converts them into vector embeddings, making large codebases easy to search, explore, or use as live AI knowledge sources.
 
 This system handles the heavy lifting behind smart code search, AI documentation assistants, and LLM context pipelines.
-
----
 
 ---
 
@@ -99,8 +78,6 @@ This design allows the system to scale easily and serve as a backend for AI tool
 
 ---
 
----
-
 ## 📘 Project Structure
 
 The folders below are arranged by importance and logical flow, starting with the entry point and core logic.
@@ -154,8 +131,6 @@ The folders below are arranged by importance and logical flow, starting with the
 
 ---
 
----
-
 ## 📘 Prerequisites & Supabase Queue Setup
 
 Before running the service, make sure the following prerequisites are met:
@@ -177,15 +152,9 @@ python --version
 
 ### 📄 Supabase Configuration
 
-1. **Enable PostgREST**
-
-Ensure PostgREST is enabled in your Supabase project so the worker can access the queue table via REST or PostgreSQL.
-
-2. **Create a Queue Table (if not exists)**
-
-The queue should be backed by a table called `processing` with jobs matching the shape shown below.
-
-You can name the table `processing`, or adapt the queue name in your code to match.
+Supabase powers both the PostgreSQL database and the message queue system (via `pgmq`) in this microservice.  
+The queue is a critical component, orchestrating async job ingestion, processing, and coordination.  
+Refer to the [DevDox Supabase Integration Guide](https://github.com/montymobile1/devdox-ai/blob/main/DEVDOX_SUPABASE_INTEGRATION_GUIDE.md) for full implementation and configuration details.
 
 ---
 
@@ -235,7 +204,6 @@ You can manually insert jobs into your Supabase queue table for testing purposes
 
 ---
 
----
 ## 📘 Getting Started
 
 Follow these steps to get the project running on your local machine.
@@ -292,44 +260,47 @@ This will start the system and launch the background workers.
 
 ---
 
----
-
 ## 📘 Environment Variables
 
 Below are the key environment variables used by the system. Most have sensible defaults, but a few are **required** to get the service running.
+
+#### 📄 Notes 
+
+- Refer to the [DevDox Supabase Integration Guide](https://github.com/montymobile1/devdox-ai/blob/main/DEVDOX_SUPABASE_INTEGRATION_GUIDE.md) to learn how to extract the configuration details for `Supabase Property`
 
 #### 📄 Required (minimum configuration)
 
 These must be set in your `.env` file before running the app:
 
-| Variable Name        | Description                              |
-|----------------------|------------------------------------------|
-| `SUPABASE_URL`       | URL of your Supabase instance            |
-| `SUPABASE_KEY`       | Supabase service key (for API access)    |
-| `SUPABASE_HOST`      | PostgreSQL host (used if REST API is off)|
-| `SUPABASE_USER`      | PostgreSQL username                      |
-| `SUPABASE_PASSWORD`  | PostgreSQL password                      |
-| `SUPABASE_PORT`      | PostgreSQL port (usually 5432)           |
-| `SUPABASE_DB_NAME`   | PostgreSQL database name                 |
-| `SUPABASE_REST_API`  | Set to `false` to use direct DB access   |
-| `SECRET_KEY`         | App secret key (min 32 characters)       |
-| `TOGETHER_API_KEY`   | API key for Together AI embedding service|
-| `EMBEDDING_MODEL`    | Name of the embedding model to use       |
-| `IS_PRODUCTION`      | Marks app as running in production       |
+| Variable Name       | Type                | Description                                                                                                                                                              |
+|---------------------|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `SUPABASE_URL`      | `Supabase Property` | URL of your Supabase instance                                                                                                                                            |
+| `SUPABASE_KEY`      | `Supabase Property` | Supabase service key (for API access)                                                                                                                                    |
+| `SUPABASE_HOST`     | `Supabase Property` | PostgreSQL host (used if REST API is off)                                                                                                                                |
+| `SUPABASE_USER`     | `Supabase Property` | PostgreSQL username                                                                                                                                                      |
+| `SUPABASE_PASSWORD` | `Supabase Property` | PostgreSQL password                                                                                                                                                      |
+| `SUPABASE_PORT`     | `Supabase Property` | PostgreSQL port (usually 5432)                                                                                                                                           |
+| `SUPABASE_DB_NAME`  | `Supabase Property` | PostgreSQL database name                                                                                                                                                 |
+| `SUPABASE_REST_API` | `DevDox Property`   | tells the app whether to auto-configure database access using the Supabase URL and key (True), or use raw separate PostgreSQL connection info provided manually (False). |
+| `SECRET_KEY`        | `DevDox Property`   | App secret key (min 32 characters)                                                                                                                                       |
+| `TOGETHER_API_KEY`  | `Together Property` | API key for Together AI embedding service                                                                                                                                |
+| `EMBEDDING_MODEL`   | `Together Property` | Name of the embedding model to use                                                                                                                                       |
+| `IS_PRODUCTION`     | `DevDox Property`   | Marks app as running in production                                                                                                                                       |
 ---
 
 #### 📄 Optional (has default values)
 
 These can be customized as needed, but have defaults:
 
-| Variable Name                | Description                                |
-|------------------------------|--------------------------------------------|
-| `WORKER_CONCURRENCY`         | Number of concurrent workers               |
-| `QUEUE_BATCH_SIZE`           | How many jobs to fetch from the queue      |
-| `QUEUE_POLLING_INTERVAL_SECONDS` | How often workers check the queue (in sec) |
-| `JOB_TIMEOUT_MINUTES`        | Max time allowed per job                   |
-| `vector_dimensions`          | Embedding size (depends on model used)     |
-| `GITLAB_TOKEN`               | Token used to access private GitLab repos  |
+| Variable Name                    | Type              | Description                                |
+|----------------------------------|-------------------|--------------------------------------------|
+| `WORKER_CONCURRENCY`             | `DevDox Property` | Number of concurrent workers               |
+| `QUEUE_BATCH_SIZE`               | `DevDox Property` | How many jobs to fetch from the queue      |
+| `QUEUE_POLLING_INTERVAL_SECONDS` | `DevDox Property` | How often workers check the queue (in sec) |
+| `JOB_TIMEOUT_MINUTES`            | `DevDox Property` | Max time allowed per job                   |
+| `vector_dimensions`              | `DevDox Property` | Embedding size (depends on model used)     |
+| `GITLAB_TOKEN`                   | `DevDox Property` | Token used to access private GitLab repos  |
+
 
 ---
 
