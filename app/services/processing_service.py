@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 import shutil
@@ -50,7 +51,7 @@ class ProcessingService:
         repo_path = self.base_dir / repo_name
 
         if repo_path.exists():
-            shutil.rmtree(repo_path)
+            await asyncio.to_thread(shutil.rmtree, repo_path)
 
         return repo_path
 
