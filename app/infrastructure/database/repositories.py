@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, TypeVar, Generic
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
 from models import User, Repo, APIKEY, GitLabel, CodeChunks
@@ -12,10 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
-
-
-class BaseRepository(ABC, Generic[T]):
+class BaseRepository[T](ABC):
     """Base repository with common database operations"""
 
     @abstractmethod
