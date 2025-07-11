@@ -44,7 +44,7 @@ class HealthChecker:
             from app.infrastructure.queues.supabase_queue import SupabaseQueue
 
             # This is a basic check - you might want to customize based on your queue implementation
-            queue = SupabaseQueue(
+            _ = SupabaseQueue(
                 host=settings.SUPABASE_HOST,
                 port=settings.SUPABASE_PORT,
                 user=settings.SUPABASE_USER,
