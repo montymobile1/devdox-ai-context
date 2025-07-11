@@ -183,18 +183,18 @@ The worker expects incoming jobs to look like this:
 
 ### 📄 Field Descriptions
 
-| Field           | Type     | Description                                                                 |
-|----------------|----------|-----------------------------------------------------------------------------|
-| `job_type`     | `str`    | Type of job: `"analyze"` or `"process"` (required by the worker)            |
-| `context_id`   | `str`    | A unique ID for the chunking/vectorization context                          |
-| `branch`       | `str`    | The Git branch to clone (e.g., `main`)                                      |
-| `config`       | `object` | Optional configuration override (can be empty `{}`)                         |
-| `repo_id`      | `str`    | GitHub/GitLab repository ID (numeric)                                       |
-| `user_id`      | `str`    | ID of the authenticated user (e.g., from Clerk auth)                        |
-| `priority`     | `int`    | Optional priority for job ordering                                           |
-| `git_token`    | `str`    | Internal Git token ID from your `git_label` database table                  |
-| `git_provider` | `str`    | One of: `"github"` or `"gitlab"`                                            |
-| `relative_path`| `str`    | Git repo path (e.g., `org-name/repo-name`)                                  |
+| Field           | Type     | Description                                                      |
+|-----------------|----------|------------------------------------------------------------------|
+| `job_type`      | `str`    | Type of job: `"analyze"` or `"process"` (required by the worker) |
+| `context_id`    | `str`    | A unique ID for the chunking/vectorization context               |
+| `branch`        | `str`    | The Git branch to clone (e.g., `main`)                           |
+| `config`        | `object` | Optional configuration override (can be empty `{}`)              |
+| `repo_id`       | `str`    | GitHub/GitLab repository ID (numeric)                            |
+| `user_id`       | `str`    | ID of the authenticated user (e.g., from Clerk auth)             |
+| `priority`      | `int`    | Optional priority for job ordering                               |
+| `git_token`     | `str`    | Internal Git token ID from your `git_label` database table       |
+| `git_provider`  | `str`    | One of: `"github"` or `"gitlab"`                                 |
+| `relative_path` | `str`    | Git repo path (e.g., `org-name/repo-name`)                       |
 
 ---
 
