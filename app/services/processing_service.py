@@ -96,7 +96,7 @@ class ProcessingService:
                 )
 
             # Get git credentials
-            git_client = await self._get_authenticated_git_client(
+            _ = await self._get_authenticated_git_client(
                 job_payload["user_id"],
                 job_payload["git_provider"],
                 job_payload["git_token"],
