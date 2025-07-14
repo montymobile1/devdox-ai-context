@@ -386,7 +386,7 @@ class SupabaseQueue:
                 if isinstance(updated_job_data, str):
                     try:
                         updated_job_data = json.loads(updated_job_data)
-                    except (json.JSONDecodeError, ValueError):
+                    except ValueError:
                         updated_job_data = {}
 
                 # Add retry information

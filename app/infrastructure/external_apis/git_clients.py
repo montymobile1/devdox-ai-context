@@ -175,7 +175,7 @@ class GitClientFactory:
         try:
             # Use retrieve_git_fetcher_or_die to validate provider availability
 
-            fetcher, fetcher_data_mapper = retrieve_git_fetcher_or_die(
+            _, _ = retrieve_git_fetcher_or_die(
                 self.store,
                 provider,
                 include_data_mapper=False,  # We only need validation, not the mapper

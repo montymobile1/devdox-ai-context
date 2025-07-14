@@ -74,7 +74,8 @@ class QueueWorker:
                     # No jobs available, wait before checking again
                     await asyncio.sleep(settings.QUEUE_POLLING_INTERVAL_SECONDS or 5)
 
-            except Exception as e:
+            except Exception:
+                
                 consecutive_failures += 1
 
                 # Exponential backoff for consecutive failures
@@ -90,7 +91,7 @@ class QueueWorker:
         job_type = job.get("job_type", "unknown")
         payload = job.get("payload", {})
 
-        start_time = time.time()
+        _ = time.time()
         self.stats["current_job"] = job_id
 
         try:
@@ -145,7 +146,7 @@ class WorkerHealthMonitor:
             try:
                 self._check_worker_health()
                 await asyncio.sleep(60)  # Check every minute
-            except Exception as e:
+            except Exception:
                 await asyncio.sleep(60)
 
     def _check_worker_health(self):
