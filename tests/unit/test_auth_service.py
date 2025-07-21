@@ -1,10 +1,15 @@
 """
 Test cases for authentication service
 """
+import logging
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+from app.core.exceptions import exception_constants
+
 from app.services.auth_service import AuthService
-from app.core.exceptions.base import AuthenticationError, TokenLimitExceededError
+from app.core.exceptions.local_exceptions import AuthenticationError, TokenLimitExceededError
 
 
 class TestAuthService:
@@ -156,19 +161,21 @@ class TestAuthService:
         mock_user_repository.find_by_user_id.assert_called_once_with(user_id)
     
     @pytest.mark.asyncio
-    async def test_check_token_limit_free_user_exceeds_limit(self, auth_service, mock_user_repository, sample_user):
+    async def test_check_token_limit_free_user_exceeds_limit(self, auth_service, mock_user_repository, sample_user, caplog):
         """Test token limit check for free user exceeding limit"""
         user_id = "user123"
         estimated_tokens = 1000  # 100 used + 1000 = 1100, exceeds 1000 limit
         
         mock_user_repository.find_by_user_id.return_value = sample_user
         
-        with pytest.raises(TokenLimitExceededError) as exc_info:
-            await auth_service.check_token_limit(user_id, estimated_tokens)
+        with caplog.at_level(logging.INFO):
+            with pytest.raises(TokenLimitExceededError) as exc_info:
+                await auth_service.check_token_limit(user_id, estimated_tokens)
         
-        assert "Token limit exceeded" in str(exc_info.value)
-        assert "Used: 100" in str(exc_info.value)
-        assert "Limit: 1000" in str(exc_info.value)
+        log_record = caplog.records[0]
+        assert exception_constants.TOKEN_LIMIT_EXCEEDED in str(exc_info.value)
+        assert log_record.token_used== 100
+        assert log_record.limit== 1000
     
     @pytest.mark.asyncio
     async def test_check_token_limit_premium_user_exceeds_limit(self, auth_service, mock_user_repository, sample_premium_user):

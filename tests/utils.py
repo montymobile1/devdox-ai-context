@@ -358,19 +358,19 @@ class ErrorTestHelper:
     @staticmethod
     def create_database_error(message: str = "Database connection failed"):
         """Create a database error for testing"""
-        from app.core.exceptions.base import DatabaseError
+        from app.core.exceptions.local_exceptions import DatabaseError
         return DatabaseError(message)
     
     @staticmethod
     def create_authentication_error(message: str = "Authentication failed"):
         """Create an authentication error for testing"""
-        from app.core.exceptions.base import AuthenticationError
+        from app.core.exceptions.local_exceptions import AuthenticationError
         return AuthenticationError(message)
     
     @staticmethod
     def create_processing_error(message: str = "Processing failed"):
         """Create a processing error for testing"""
-        from app.core.exceptions.base import ProcessingError
+        from app.core.exceptions.local_exceptions import ProcessingError
         return ProcessingError(message)
     
     @staticmethod
