@@ -2,6 +2,7 @@ from abc import abstractmethod
 from typing import Any, Optional, Protocol
 import gitlab
 import requests
+from app.core.exceptions import exception_constants
 from github import Github, GithubException
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
@@ -9,9 +10,10 @@ from gitlab import Gitlab, GitlabError
 from gitlab.v4.objects import Project
 
 from app.core.config import GitHosting
-from app.core.exceptions.custom_exceptions import DevDoxAPIException
-from app.core.exceptions.exception_constants import SERVICE_UNAVAILABLE
+from app.core.exceptions.base_exceptions import DevDoxAPIException
 
+GITHUB_REPOSITORY_NAME = "GitHub"
+GITLAB_REPOSITORY_NAME = "GitLab"
 
 class IManager(Protocol):
     @abstractmethod
@@ -29,9 +31,12 @@ class AuthenticatedGitHubManager:
             return self._git_client.get_repo(full_name_or_id)
         except GithubException as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GithHub project",
-                log_message="GitHub project fetch failed",
-                root_exception=e,
+                user_message=exception_constants.GIT_PROJECT_FETCH_FAILED,
+                log_message=exception_constants.GIT_PROJECT_FETCH_FAILED,
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
             ) from e
 
     def get_project_languages(
@@ -46,9 +51,12 @@ class AuthenticatedGitHubManager:
                 ).get_languages()
         except GithubException as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GitHub project languages",
-                log_message="GitHub project languages fetch failed",
-                root_exception=e,
+                user_message=exception_constants.GIT_PROJECT_LANGUAGE_FETCH_FAILED,
+                log_message=exception_constants.GIT_PROJECT_LANGUAGE_FETCH_FAILED,
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
             ) from e
 
     def get_user(self) -> AuthenticatedUser:
@@ -58,10 +66,13 @@ class AuthenticatedGitHubManager:
             return user
         except GithubException as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GitHub user.",
-                log_message="GitHub user fetch failed",
-                root_exception=e,
-            )
+                user_message=exception_constants.GIT_USER_FETCH_FAILED,
+                log_message=exception_constants.GIT_USER_FETCH_FAILED,
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
+            ) from e
 
     def get_user_repositories(
         self,
@@ -104,10 +115,13 @@ class AuthenticatedGitHubManager:
 
         except GithubException as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GitHub repositories.",
-                log_message="GitHub repository list fetch failed",
-                root_exception=e,
-            )
+                user_message=exception_constants.GIT_REPOS_FETCH_FAILED,
+                log_message=exception_constants.GIT_REPOS_FETCH_FAILED,
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
+            ) from e
 
     def _is_supported_file(self, filename: str) -> bool:
         """Check if file type is supported"""
@@ -162,9 +176,12 @@ class GitHubManager(IManager):
 
         except GithubException as e:
             raise DevDoxAPIException(
-                user_message="GitHub authentication failed",
-                log_message="Failed to authenticate GitHubManager",
-                root_exception=e,
+                user_message=exception_constants.GIT_AUTH_FAILED,
+                log_message=exception_constants.GIT_AUTH_FAILED,
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__
+                }
             ) from e
 
     @staticmethod
@@ -253,9 +270,12 @@ class AuthenticatedGitLabManager:
             )
         except GitlabError as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GitLab project",
-                log_message="GitLab project fetch failed",
-                root_exception=e,
+                user_message=exception_constants.GIT_PROJECT_FETCH_FAILED,
+                log_message=exception_constants.GIT_PROJECT_FETCH_FAILED,
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
             ) from e
 
     def get_project_languages(
@@ -270,9 +290,12 @@ class AuthenticatedGitLabManager:
                 ).languages()
         except GitlabError as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GitLab project languages",
-                log_message="GitLab project languages fetch failed",
-                root_exception=e,
+                user_message=exception_constants.GIT_PROJECT_LANGUAGE_FETCH_FAILED,
+                log_message=exception_constants.GIT_PROJECT_LANGUAGE_FETCH_FAILED,
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
             ) from e
 
     def get_user(self, timeout: int = DEFAULT_TIMEOUT):
@@ -283,9 +306,12 @@ class AuthenticatedGitLabManager:
             return response.json()
         except requests.exceptions.RequestException as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GitLab user.",
-                log_message="GitLab user fetch failed",
-                root_exception=e,
+                user_message=exception_constants.GIT_USER_FETCH_FAILED,
+                log_message=exception_constants.GIT_USER_FETCH_FAILED,
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
             ) from e
 
     def get_user_repositories(
@@ -314,9 +340,12 @@ class AuthenticatedGitLabManager:
             return {"repositories": repos, "pagination_info": pagination}
         except requests.exceptions.RequestException as e:
             raise DevDoxAPIException(
-                user_message="Unable to fetch GitLab repositories.",
-                log_message="GitLab repository list fetch failed",
-                root_exception=e,
+                user_message=exception_constants.GIT_REPOS_FETCH_FAILED,
+                log_message=exception_constants.GIT_REPOS_FETCH_FAILED,
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                }
             ) from e
 
     def _is_supported_file(self, filename: str) -> bool:
@@ -367,9 +396,12 @@ class GitLabManager(IManager):
 
         except GitlabError as e:
             raise DevDoxAPIException(
-                user_message="GitLab authentication failed",
-                log_message="Failed to authenticate GitLabManager",
-                root_exception=e,
+                user_message=exception_constants.GIT_AUTH_FAILED,
+                log_message=exception_constants.GIT_AUTH_FAILED,
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__
+                }
             ) from e
 
 
@@ -379,15 +411,15 @@ def retrieve_git_fetcher_or_die(
     fetcher, fetcher_data_mapper = store.get_components(provider)
     if not fetcher:
         raise DevDoxAPIException(
-            user_message=SERVICE_UNAVAILABLE,
-            log_message=f"Unsupported Git hosting: {provider}",
+            user_message=exception_constants.SERVICE_UNAVAILABLE,
+            log_message=exception_constants.PROVIDER_NOT_SUPPORTED_MESSAGE.format(provider=provider),
             log_level="exception",
         )
 
     if include_data_mapper and not fetcher_data_mapper:
         raise DevDoxAPIException(
-            user_message=SERVICE_UNAVAILABLE,
-            log_message=f"Unable to find mapper for Git hosting: {provider}",
+            user_message=exception_constants.SERVICE_UNAVAILABLE,
+            log_message=exception_constants.PROVIDER_NOT_SUPPORTED_MESSAGE.format(provider=provider),
             log_level="exception",
         )
 
