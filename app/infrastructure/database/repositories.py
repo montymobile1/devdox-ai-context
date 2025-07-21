@@ -2,8 +2,10 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
+
+from app.core.exceptions import exception_constants
 from models import User, Repo, APIKEY, GitLabel, CodeChunks
-from app.core.exceptions.base import (
+from app.core.exceptions.local_exceptions import (
     RepoNotFoundError,
     DatabaseError,
     ContextNotFoundError,
@@ -61,8 +63,8 @@ class TortoiseUserRepository(UserRepositoryInterface):
             await user.save()
             logger.info(f"Updated token usage for user {user_id}: +{tokens_used}")
         except Exception as e:
-            logger.error(f"Error updating token usage for user {user_id}: {str(e)}")
-            raise DatabaseError(f"Failed to update token usage: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_USER_TOKEN_UPDATE_FAILED,
+                                internal_context={"user_id": user_id}) from e
 
     async def create_user(self, user_data: dict) -> User:
         try:
@@ -70,8 +72,7 @@ class TortoiseUserRepository(UserRepositoryInterface):
             logger.info(f"Created new user: {user.user_id}")
             return user
         except Exception as e:
-            logger.error(f"Error creating user: {str(e)}")
-            raise DatabaseError(f"Failed to create user: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_USER_CREATION_FAILED) from e
 
 
 class APIKeyRepositoryInterface(ABC):
@@ -99,8 +100,7 @@ class TortoiseAPIKeyRepository(APIKeyRepositoryInterface):
             await api_key.save()
 
         except Exception as e:
-            logger.error(f"Error updating API key last used: {str(e)}")
-            raise DatabaseError(f"Failed to update API key: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_API_KEY_UPDATE_FAILED) from e
 
 
 class RepoRepositoryInterface(ABC):
@@ -142,7 +142,7 @@ class TortoiseRepoRepository(RepoRepositoryInterface):
         try:
             repo = await Repo.filter(repo_id=repo_id).first()
             if not repo:
-                raise RepoNotFoundError(f"Repository {repo_id} not found")
+                raise RepoNotFoundError(user_message=exception_constants.REPOSITORY_NOT_FOUND, internal_context={"repo_id": repo_id})
 
             repo.status = status
             for key, value in kwargs.items():
@@ -155,7 +155,7 @@ class TortoiseRepoRepository(RepoRepositoryInterface):
             raise
         except Exception as e:
             logger.error(f"Error updating repo status: {str(e)}")
-            raise DatabaseError(f"Failed to update repo status: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_REPO_STATUS_UPDATE_FAILED) from e
 
 
 class GitLabelRepositoryInterface(ABC):
@@ -198,14 +198,13 @@ class TortoiseContextRepository(ContextRepositoryInterface):
             logger.info(f"Created context for repo {repo_id}")
             return context
         except Exception as e:
-            logger.error(f"Error creating context: {str(e)}")
-            raise DatabaseError(f"Failed to create context: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_CONTEXT_REPO_CREATE_FAILED) from e
 
     async def update_status(self, context_id: str, status: str, **kwargs) -> None:
         try:
             context = await Repo.filter(id=context_id).first()
             if not context:
-                raise ContextNotFoundError(f"Context {context_id} not found")
+                raise ContextNotFoundError(user_message=exception_constants.CONTEXT_NOT_FOUND, internal_context={"context_id": context_id})
 
             context.status = status
             for key, value in kwargs.items():
@@ -216,8 +215,7 @@ class TortoiseContextRepository(ContextRepositoryInterface):
         except ContextNotFoundError:
             raise
         except Exception as e:
-            logger.error(f"Error updating context status: {str(e)}")
-            raise DatabaseError(f"Failed to update context: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED) from e
 
 
 class ContextCodeChunkInterface(ABC):
@@ -255,8 +253,7 @@ class TortoiseCodeChunks(ContextCodeChunkInterface):
             logger.info(f"Stored {len(created_chunks)} embeddings for repo {repo_id}")
             return created_chunks[0] if created_chunks else None
         except Exception as e:
-            logger.error(f"Error storing embeddings: {str(e)}")
-            raise DatabaseError(f"Failed to store embeddings: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_CODE_CHUNKS_CREATE_FAILED) from e
 
     async def find_by_repo(self, repo_id: str, limit: int = 100) -> List[CodeChunks]:
         try:

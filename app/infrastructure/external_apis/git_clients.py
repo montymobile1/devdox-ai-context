@@ -1,6 +1,8 @@
 # src/infrastructure/external_apis/git_clients.py
 from abc import ABC, abstractmethod
 from typing import Dict, Any
+
+from app.core.exceptions import exception_constants
 from github import Github
 import gitlab
 
@@ -8,8 +10,7 @@ import gitlab
 
 from app.core.config import GitHosting
 
-from app.core.exceptions.custom_exceptions import DevDoxAPIException
-from app.handlers.utils.constants import SERVICE_UNAVAILABLE
+from app.core.exceptions.base_exceptions import DevDoxAPIException
 
 
 class GitClient(ABC):
@@ -112,15 +113,15 @@ def retrieve_git_fetcher_or_die(
 
     if not fetcher:
         raise DevDoxAPIException(
-            user_message=SERVICE_UNAVAILABLE,
-            log_message=f"Unsupported Git hosting: {provider}",
+            user_message=exception_constants.SERVICE_UNAVAILABLE,
+            log_message=exception_constants.PROVIDER_NOT_SUPPORTED_MESSAGE.format(provider=provider),
             log_level="exception",
         )
 
     if include_data_mapper and not fetcher_data_mapper:
         raise DevDoxAPIException(
-            user_message=SERVICE_UNAVAILABLE,
-            log_message=f"Unable to find mapper for Git hosting: {provider}",
+            user_message=exception_constants.SERVICE_UNAVAILABLE,
+            log_message=exception_constants.PROVIDER_NOT_SUPPORTED_MESSAGE.format(provider=provider),
             log_level="exception",
         )
 
@@ -193,8 +194,8 @@ class GitClientFactory:
 
                 else:
                     raise DevDoxAPIException(
-                        user_message=SERVICE_UNAVAILABLE,
-                        log_message=f"Unsupported git provider: {provider}",
+                        user_message=exception_constants.SERVICE_UNAVAILABLE,
+                        log_message=exception_constants.PROVIDER_NOT_SUPPORTED_MESSAGE.format(provider=provider),
                         log_level="exception",
                     )
 
@@ -210,10 +211,10 @@ class GitClientFactory:
 
             else:
                 # This should be caught by retrieve_git_fetcher_or_die, but as a fallback
-
+                
                 raise DevDoxAPIException(
-                    user_message=SERVICE_UNAVAILABLE,
-                    log_message=f"Unsupported git provider: {provider}",
+                    user_message=exception_constants.SERVICE_UNAVAILABLE,
+                    log_message=exception_constants.PROVIDER_NOT_SUPPORTED_MESSAGE.format(provider=provider),
                     log_level="exception",
                 )
 
@@ -225,8 +226,10 @@ class GitClientFactory:
             # Wrap any other exceptions
 
             raise DevDoxAPIException(
-                user_message="Failed to create git client",
-                log_message=f"Error creating git client for provider {provider}: {str(e)}",
+                user_message=exception_constants.SERVICE_UNAVAILABLE,
+                log_message=exception_constants.GIT_CLIENT_CREATION_FAILED,
+                internal_context={
+                    "provider": provider
+                },
                 log_level="exception",
-                root_exception=e,
             ) from e
