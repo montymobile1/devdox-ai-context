@@ -10,7 +10,7 @@ Key responsibilities:
 - Centralized support for structured API responses and log formatting
 
 To create a new custom exception:
-1. Subclass `DevDoxAPIException`
+1. Subclass `DevDoxAPIException` in a different module preferably local to your project
 2. Optionally override `http_status`
 3. Pass `user_message`, `log_message`, `error_type`, etc.
 
@@ -25,19 +25,12 @@ Example:
                 internal_context={"repo_id": repo_id},
             )
 
-These exceptions are globally handled and logged by the `devdox_exception_handler`
-defined in `handlers.py`, and registered into the FastAPI app via `register.py`.
+These exceptions are globally handled and logged usually by a handler.
 """
 
 from typing import Any, Dict, Optional
 
 from starlette import status
-
-from app.handlers.utils.constants import (
-    AUTH_FAILED,
-    GENERIC_BAD_REQUEST,
-    GENERIC_RESOURCE_NOT_FOUND,
-)
 
 
 class DevDoxAPIException(Exception):
@@ -60,7 +53,6 @@ class DevDoxAPIException(Exception):
                         error_type="REPO_SYNC_FAILED",
                         public_context=None,
                         internal_context={"repo_id": repo_id, "provider": provider},
-                        root_exception=cause,
                     )
     ```
     """
@@ -77,7 +69,6 @@ class DevDoxAPIException(Exception):
         error_type: Optional[str] = None,
         public_context: Optional[Dict[str, Any]] = None,
         internal_context: Optional[Dict[str, Any]] = None,
-        root_exception: Optional[Exception] = None,
         http_status_override: Optional[int] = None,
         log_level: Optional[str] = None,
     ):
@@ -90,8 +81,8 @@ class DevDoxAPIException(Exception):
                 internal_context: Optional context to include in logs only (e.g., {"repo_id": 123}).
 
                 error_type: Optional machine-readable code.
-                root_exception: Original exception (for traceback chaining).
                 http_status_override: Override the default HTTP status for this exception.
+                log_level: specifies the level of the logging system of exception instance
         """
         super().__init__(user_message)
 
@@ -100,32 +91,8 @@ class DevDoxAPIException(Exception):
         self.error_type = error_type or self.__class__.__name__.upper()
         self.public_context = public_context or {}
         self.internal_context = internal_context or {}
-        self.root_exception = root_exception
         self.http_status = http_status_override or self.http_status
         self.log_level = log_level.lower() if log_level else "warning"
 
     def __str__(self):
         return f"[{self.error_type}] {self.user_message}"
-
-
-class UnauthorizedAccess(DevDoxAPIException):
-    http_status = status.HTTP_401_UNAUTHORIZED
-
-    def __init__(self, reason=AUTH_FAILED, log_message=None, log_level=None):
-        super().__init__(
-            user_message=reason, log_message=log_message, log_level=log_level
-        )
-
-
-class BadRequest(DevDoxAPIException):
-    http_status = status.HTTP_400_BAD_REQUEST
-
-    def __init__(self, reason=GENERIC_BAD_REQUEST):
-        super().__init__(user_message=reason)
-
-
-class ResourceNotFound(DevDoxAPIException):
-    http_status = status.HTTP_404_NOT_FOUND
-
-    def __init__(self, reason=GENERIC_RESOURCE_NOT_FOUND):
-        super().__init__(user_message=reason)

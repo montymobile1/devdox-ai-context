@@ -13,16 +13,12 @@ from app.infrastructure.database.repositories import (
     TortoiseAPIKeyRepository,
     RepoRepositoryInterface,
     TortoiseRepoRepository,
-    GitLabelRepositoryInterface,
-    TortoiseGitLabelRepository,
     ContextRepositoryInterface,
     TortoiseContextRepository,
     ContextCodeChunkInterface,
     TortoiseCodeChunks
 )
-from app.core.exceptions.base import (
-    UserNotFoundError,
-    APIKeyNotFoundError,
+from app.core.exceptions.local_exceptions import (
     RepoNotFoundError,
     ContextNotFoundError,
     DatabaseError
