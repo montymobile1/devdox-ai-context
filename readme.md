@@ -154,7 +154,7 @@ python --version
 
 Supabase powers both the PostgreSQL database and the message queue system (via `pgmq`) in this microservice.  
 The queue is a critical component, orchestrating async job ingestion, processing, and coordination.  
-Refer to the [DevDox Supabase Integration Guide](https://github.com/montymobile1/devdox-ai/blob/main/DEVDOX_SUPABASE_INTEGRATION_GUIDE.md) for full implementation and configuration details.
+Refer to the [DevDox Supabase Integration Guide](https://github.com/montymobile1/devdox-ai/blob/main/supabase_integration.md) in the [devdox-ai project](https://github.com/montymobile1/devdox-ai) under the name of `supabase_integration.md`  for full implementation and configuration details.
 
 ---
 
