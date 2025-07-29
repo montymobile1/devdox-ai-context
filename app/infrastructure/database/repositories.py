@@ -188,6 +188,9 @@ class ContextRepositoryInterface(ABC):
     async def update_status(self, context_id: str, status: str, **kwargs) -> None:
         pass
 
+    @abstractmethod
+    async def update_repo(self, context_id: str,  **kwargs) -> None:
+        pass
 
 class TortoiseContextRepository(ContextRepositoryInterface):
     async def create_context(self, repo_id: str, user_id: str, config: dict) -> Repo:
@@ -213,6 +216,25 @@ class TortoiseContextRepository(ContextRepositoryInterface):
                     setattr(context, key, value)
             await context.save()
             logger.info(f"Updated context {context_id} status to {status}")
+        except ContextNotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating context status: {str(e)}")
+            raise DatabaseError(f"Failed to update context: {str(e)}")
+
+    async def update_repo(self, context_id: str,  **kwargs) -> None:
+        try:
+            context = await Repo.filter(id=context_id).first()
+            if not context:
+                raise ContextNotFoundError(f"Context {context_id} not found")
+
+
+            for key, value in kwargs.items():
+                if hasattr(context, key):
+                    setattr(context, key, value)
+            await context.save()
+            logger.info(f"Updated context {context_id} ")
+
         except ContextNotFoundError:
             raise
         except Exception as e:
