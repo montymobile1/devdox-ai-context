@@ -168,8 +168,7 @@ class TestAuthService:
         
         mock_user_repository.find_by_user_id.return_value = sample_user
         
-        with caplog.at_level(logging.INFO):
-            with pytest.raises(TokenLimitExceededError) as exc_info:
+        with caplog.at_level(logging.INFO), pytest.raises(TokenLimitExceededError) as exc_info:
                 await auth_service.check_token_limit(user_id, estimated_tokens)
         
         log_record = caplog.records[0]

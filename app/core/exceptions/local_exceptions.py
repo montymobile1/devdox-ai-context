@@ -1,10 +1,12 @@
 """
 Custom exception classes for the DevDox AI Context service.
 """
+import logging
 from typing import Optional
 
-from app.core.exceptions.custom_exceptions import DevDoxAPIException
+from app.core.exceptions.base_exceptions import DevDoxAPIException
 
+logger = logging.getLogger(__name__)
 
 class DatabaseError(DevDoxAPIException):
     """Database operation errors"""
@@ -105,6 +107,8 @@ class TokenLimitExceededError(DevDoxAPIException):
     
     def __init__(self, user_message=None, log_level="error", internal_context: Optional[dict] = None):
         log_message = user_message
+        
+        logger.error(log_message, extra=internal_context)
         
         super().__init__(
             user_message=user_message, log_message=log_message, log_level=log_level, internal_context=internal_context
