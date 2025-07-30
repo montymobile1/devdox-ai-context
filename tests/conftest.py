@@ -248,21 +248,21 @@ def minimal_config():
 @pytest.fixture
 def database_error():
     """Database error for testing error handling"""
-    from app.core.exceptions.base import DatabaseError
+    from app.core.exceptions.local_exceptions import DatabaseError
     return DatabaseError("Test database error")
 
 
 @pytest.fixture
 def authentication_error():
     """Authentication error for testing"""
-    from app.core.exceptions.base import AuthenticationError
+    from app.core.exceptions.local_exceptions import AuthenticationError
     return AuthenticationError("Test authentication error")
 
 
 @pytest.fixture
 def processing_error():
     """Processing error for testing"""
-    from app.core.exceptions.base import ProcessingError
+    from app.core.exceptions.local_exceptions import ProcessingError
     return ProcessingError("Test processing error")
 
 

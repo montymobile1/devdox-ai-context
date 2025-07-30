@@ -5,6 +5,9 @@ import pytest
 from datetime import datetime, timezone
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from app.core.exceptions import exception_constants
+
 from app.infrastructure.database.repositories import (
     BaseRepository,
     UserRepositoryInterface,
@@ -13,16 +16,12 @@ from app.infrastructure.database.repositories import (
     TortoiseAPIKeyRepository,
     RepoRepositoryInterface,
     TortoiseRepoRepository,
-    GitLabelRepositoryInterface,
-    TortoiseGitLabelRepository,
     ContextRepositoryInterface,
     TortoiseContextRepository,
     ContextCodeChunkInterface,
     TortoiseCodeChunks
 )
-from app.core.exceptions.base import (
-    UserNotFoundError,
-    APIKeyNotFoundError,
+from app.core.exceptions.local_exceptions import (
     RepoNotFoundError,
     ContextNotFoundError,
     DatabaseError
@@ -140,7 +139,7 @@ class TestTortoiseUserRepository:
         with pytest.raises(DatabaseError) as exc_info:
             await user_repository.update_token_usage("user123", 50)
         
-        assert "Failed to update token usage" in str(exc_info.value)
+        assert exception_constants.DB_USER_TOKEN_UPDATE_FAILED in str(exc_info.value)
     
     @pytest.mark.asyncio
     @patch('app.infrastructure.database.repositories.User')

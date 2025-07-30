@@ -9,7 +9,7 @@ from app.handlers.queue_worker import QueueWorker
 from app.services.processing_service import ProcessingService
 from app.services.auth_service import AuthService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
-from app.core.exceptions.base import TokenLimitExceededError
+from app.core.exceptions.local_exceptions import TokenLimitExceededError
 from tests.utils import TestDataFactory, MockFactory
 import tempfile
 
