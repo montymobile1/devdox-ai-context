@@ -24,12 +24,13 @@ class MessageHandler:
         self.processing_service = processing_service
         self.queue_service = queue_service
 
-    async def handle_processing_message(self, job_payload: Dict[str, Any]) -> None:
+    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracker_instance) -> None:
         """Handle repository processing message"""
 
         try:
             # Process the repository
-            result = await self.processing_service.process_repository(job_payload)
+            result = await self.processing_service.process_repository(job_payload, job_tracker_instance)
+            
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
 
