@@ -25,7 +25,7 @@ class MessageHandler:
         self.processing_service = processing_service
         self.queue_service = queue_service
 
-    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None) -> None:
+    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracker_instance, job_tracer:Optional[JobTraceMetaData] = None) -> None:
         """Handle repository processing message"""
         
         try:
@@ -33,7 +33,8 @@ class MessageHandler:
             if job_tracer:
                 job_tracer.mark_job_started()
             
-            result = await self.processing_service.process_repository(job_payload, job_tracer=job_tracer)
+            result = await self.processing_service.process_repository(job_payload, job_tracker_instance, job_tracer=job_tracer)
+            
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
                 
