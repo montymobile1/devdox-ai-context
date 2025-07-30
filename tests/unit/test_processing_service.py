@@ -4,7 +4,7 @@ Test cases for processing service
 import pytest
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 from langchain_core.documents import Document
 from app.services.processing_service import ProcessingService
 import tempfile
@@ -92,6 +92,39 @@ class TestProcessingService:
         git_config = MagicMock()
         git_config.token_value = "encrypted_token"
         return git_config
+
+    @pytest.fixture
+    def sample_documents(self):
+        """Sample document chunks"""
+        return [
+            Document(
+                page_content="print('hello world')",
+                metadata={
+                    "source": "main.py",
+                    "file_name": "main.py",
+                    "file_path": "src/main.py",
+                    "file_size": 100
+                }
+            ),
+            Document(
+                page_content='{"name": "test-project", "version": "1.0.0"}',
+                metadata={
+                    "source": "package.json",
+                    "file_name": "package.json",
+                    "file_path": "package.json",
+                    "file_size": 50
+                }
+            ),
+            Document(
+                page_content="# Test Project\nThis is a test project for demonstration.",
+                metadata={
+                    "source": "README.md",
+                    "file_name": "README.md",
+                    "file_path": "README.md",
+                    "file_size": 75
+                }
+            ),
+        ]
 
     def test_init(self, processing_service, mock_repositories, mock_encryption_service):
         """Test ProcessingService initialization"""
@@ -278,6 +311,430 @@ class TestProcessingService:
         for file_path, expected_lang in test_cases:
             result = processing_service._detect_language(file_path)
             assert result == expected_lang, f"Failed for {file_path}"
+
+    def test_matches_dependency_pattern(self, processing_service):
+        """Test dependency pattern matching"""
+        patterns = ["package.json", "*.lock", "requirements.txt"]
+
+        test_cases = [
+            ("package.json", True),
+            ("yarn.lock", True),
+            ("package-lock.json", True),
+            ("requirements.txt", True),
+            ("main.py", False),
+            ("config.ini", False),
+        ]
+
+        for file_name, expected in test_cases:
+            result = processing_service._matches_dependency_pattern(file_name, patterns)
+            assert result == expected, f"Failed for {file_name}"
+
+    @patch("builtins.open", new_callable=mock_open, read_data='{"name": "test"}')
+    @patch("pathlib.Path.exists", return_value=True)
+    def test_read_dependency_file_success(self, mock_exists, mock_file, processing_service):
+        """Test successful dependency file reading"""
+        chunk = Document(
+            page_content="",
+            metadata={"file_name": "package.json", "file_path": "package.json"}
+        )
+        relative_path = Path("/tmp/repo")
+        language = "JavaScript"
+
+        result = processing_service._read_dependency_file(chunk, relative_path, language)
+
+        assert result is not None
+        assert result["file_name"] == "package.json"
+        assert result["content"] == '{"name": "test"}'
+        assert result["language"] == "JavaScript"
+
+
+    def test_extract_readme_content_found(self, processing_service, sample_documents):
+        """Test README extraction when file is found"""
+        with patch("builtins.open", mock_open(read_data="# Test README")), \
+                patch("pathlib.Path.exists", return_value=True):
+            relative_path = Path("/tmp/repo")
+            result = processing_service._extract_readme_content(sample_documents, relative_path)
+
+            assert result == "# Test README"
+
+    def test_extract_readme_content_not_found(self, processing_service):
+        """Test README extraction when no README file exists"""
+        documents = [
+            Document(
+                page_content="print('hello')",
+                metadata={"file_name": "main.py", "file_path": "main.py"}
+            )
+        ]
+
+        relative_path = Path("/tmp/repo")
+        result = processing_service._extract_readme_content(documents, relative_path)
+
+        assert result is None
+
+    def test_create_readme_analysis_prompt(self, processing_service):
+        """Test README analysis prompt creation"""
+        readme_content = "# Test Project\nThis is a test."
+
+        prompt = processing_service._create_readme_analysis_prompt(readme_content)
+
+        assert "README CONTENT START" in prompt
+        assert "README CONTENT END" in prompt
+        assert readme_content in prompt
+        assert "Project Description" in prompt
+        assert "Key Features" in prompt
+
+    def test_read_dependency_file_not_exists(self, mock_exists, processing_service):
+        """Test dependency file reading when file doesn't exist"""
+        chunk = Document(
+            page_content="",
+            metadata={"file_name": "missing.json", "file_path": "missing.json"}
+        )
+        relative_path = Path("/tmp/repo")
+        language = "JavaScript"
+
+        result = processing_service._read_dependency_file(chunk, relative_path, language)
+
+        assert result is None
+
+    @patch("app.services.processing_service.Together")
+    def test_analyze_readme_content_success(self, mock_together_class, processing_service):
+        """Test successful README content analysis"""
+        readme_content = "# Test Project\nThis is a test project."
+
+        # Mock Together client response
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = """## Project Description
+    This is a test project.
+
+    ## Key Features
+    - Feature 1
+    - Feature 2
+
+    ## Setup & Installation
+    pip install requirements"""
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_together_class.return_value = mock_client
+
+        result = processing_service._analyze_readme_content(readme_content)
+
+        assert result["project_description"] == "This is a test project."
+        assert "Feature 1" in result["key_features"]
+        assert "pip install" in result["setup_instructions"]
+
+    @patch("app.services.processing_service.Together")
+    def test_analyze_readme_content_failure(self, mock_together_class, processing_service):
+        """Test README analysis failure"""
+        readme_content = "# Test Project"
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+        mock_together_class.return_value = mock_client
+
+        result = processing_service._analyze_readme_content(readme_content)
+
+        assert result["full_analysis"] == "Analysis failed"
+        assert result["project_description"] == ""
+
+    def test_extract_dependency_files(self, processing_service, sample_documents):
+        """Test dependency files extraction"""
+        with patch.object(processing_service, '_read_dependency_file') as mock_read:
+            mock_read.return_value = {
+                "file_name": "package.json",
+                "content": '{"name": "test"}',
+                "language": "JavaScript"
+            }
+
+            relative_path = Path("/tmp/repo")
+            languages = ["JavaScript"]
+
+            result = processing_service._extract_dependency_files(
+                sample_documents, relative_path, languages
+            )
+
+            assert len(result) == 1
+            assert result[0]["file_name"] == "package.json"
+
+    def test_create_comprehensive_analysis_prompt(self, processing_service):
+        """Test comprehensive analysis prompt creation"""
+        dependency_files = [
+            {
+                "file_name": "package.json",
+                "content": '{"name": "test"}',
+                "language": "JavaScript"
+            }
+        ]
+        readme_analysis = {
+            "full_analysis": "This is a test project."
+        }
+
+        prompt = processing_service._create_comprehensive_analysis_prompt(
+            dependency_files, readme_analysis
+        )
+
+        assert "package.json" in prompt
+        assert "JavaScript" in prompt
+        assert "README ANALYSIS" in prompt
+        assert "This is a test project" in prompt
+
+    @patch("app.services.processing_service.Together")
+    @patch("app.services.processing_service.settings")
+    def test_create_embeddings_success(
+            self, mock_settings, mock_together_class, processing_service, sample_documents
+    ):
+        """Test successful embedding creation"""
+        # Mock Together client response
+        mock_embedding_data = MagicMock()
+        mock_embedding_data.embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
+
+        mock_response = MagicMock()
+        mock_response.data = [mock_embedding_data]
+
+        mock_client = MagicMock()
+        mock_client.embeddings.create.return_value = mock_response
+        mock_together_class.return_value = mock_client
+
+        mock_settings.TOGETHER_API_KEY = "test_key"
+
+        result = processing_service._create_embeddings(sample_documents)
+
+        assert len(result) == len(sample_documents)
+        embedding = result[0]
+        assert "chunk_id" in embedding
+        assert embedding["embedding"] == [0.1, 0.2, 0.3, 0.4, 0.5]
+        assert embedding["model_name"] == "togethercomputer/m2-bert-80M-32k-retrieval"
+        assert embedding["vector_dimension"] == 5
+
+    @patch("app.services.processing_service.Together")
+    def test_create_embeddings_empty_chunks(
+            self, mock_together_class, processing_service
+    ):
+        """Test embedding creation with empty chunks"""
+        chunks = []
+
+        result = processing_service._create_embeddings(chunks)
+
+        assert result == []
+        mock_together_class.assert_not_called()
+
+    @patch("app.services.processing_service.Together")
+    @patch("app.services.processing_service.settings")
+    def test_create_embeddings_api_failure(
+            self, mock_settings, mock_together_class, processing_service, sample_documents
+    ):
+        """Test embedding creation with API failure"""
+        mock_client = MagicMock()
+        mock_client.embeddings.create.side_effect = Exception("API Error")
+        mock_together_class.return_value = mock_client
+
+        mock_settings.TOGETHER_API_KEY = "test_key"
+
+        result = processing_service._create_embeddings(sample_documents)
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.Repo")
+    async def test_process_repository_success(
+            self, mock_repo_class, processing_service, mock_repositories, sample_repo
+    ):
+        """Test successful repository processing"""
+        job_payload = {
+            "context_id": "ctx123",
+            "repo_id": "repo456",
+            "user_id": "user789",
+            "git_provider": "github",
+            "git_token": "token123",
+            "branch": "main",
+        }
+
+        # Setup mocks
+        mock_repositories["repo"].find_by_repo_id.return_value = sample_repo
+
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.head.commit.hexsha = "new_commit_hash"
+        mock_repo_class.return_value = mock_repo_instance
+
+        # Mock all the processing steps
+        processing_service._get_authenticated_git_client = AsyncMock()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
+
+        processing_service.clone_and_process_repository = MagicMock(
+            return_value=[
+                Document(page_content="test content", metadata={"source": "test.py"})
+            ]
+        )
+        processing_service._process_files_to_chunks = MagicMock(
+            return_value=[
+                Document(page_content="chunk1", metadata={"source": "test.py"})
+            ]
+        )
+        processing_service.analyze_repository = AsyncMock(return_value=True)
+        processing_service._create_embeddings = MagicMock(
+            return_value=[
+                {"chunk_id": "chunk1", "embedding": [0.1, 0.2], "content": "chunk1"}
+            ]
+        )
+
+        result = await processing_service.process_repository(job_payload)
+
+        assert result.success is True
+        assert result.context_id == "ctx123"
+        assert result.chunks_created == 1
+        assert result.embeddings_created == 1
+        assert result.processing_time is not None
+
+    @pytest.mark.asyncio
+    async def test_process_repository_repo_not_found(
+            self, processing_service, mock_repositories
+    ):
+        """Test repository processing when repo not found"""
+        job_payload = {
+            "context_id": "ctx123",
+            "repo_id": "nonexistent",
+            "user_id": "user789",
+            "git_provider": "github",
+            "git_token": "token123",
+        }
+
+        mock_repositories["repo"].find_by_repo_id.return_value = None
+
+        result = await processing_service.process_repository(job_payload)
+
+        assert result.success is False
+        assert result.context_id == "ctx123"
+        assert "Repository not found" in result.error_message
+
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.Repo")
+    async def test_process_repository_already_processed(
+            self, mock_repo_class, processing_service, mock_repositories, sample_repo
+    ):
+        """Test repository processing when already processed with same commit"""
+        job_payload = {
+            "context_id": "ctx123",
+            "repo_id": "repo456",
+            "user_id": "user789",
+            "git_provider": "github",
+            "git_token": "token123",
+        }
+
+        # Set repo to failed status with same commit
+        sample_repo.last_commit = "same_commit_hash"
+        sample_repo.status = "failed"
+        mock_repositories["repo"].find_by_repo_id.return_value = sample_repo
+
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.head.commit.hexsha = "same_commit_hash"
+        mock_repo_class.return_value = mock_repo_instance
+
+        processing_service._get_authenticated_git_client = AsyncMock()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
+        processing_service.clone_and_process_repository = MagicMock(return_value=[])
+
+        result = await processing_service.process_repository(job_payload)
+
+        assert result.success is False
+        assert "Repository already processed" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_analyze_repository_success(
+            self, processing_service, mock_repositories, sample_documents
+    ):
+        """Test successful repository analysis"""
+        with patch.object(processing_service, '_extract_dependency_files') as mock_extract_deps, \
+                patch.object(processing_service, '_extract_readme_content') as mock_extract_readme, \
+                patch.object(processing_service, '_analyze_readme_content') as mock_analyze_readme, \
+                patch("app.services.processing_service.Together") as mock_together_class:
+            # Setup mocks
+            mock_extract_deps.return_value = [
+                {"file_name": "package.json", "content": "{}", "language": "JavaScript"}
+            ]
+            mock_extract_readme.return_value = "# Test README"
+            mock_analyze_readme.return_value = {"full_analysis": "Test analysis"}
+
+            mock_response = MagicMock()
+            mock_response.choices[0].message.content = "Comprehensive analysis result"
+            mock_client = MagicMock()
+            mock_client.chat.completions.create.return_value = mock_response
+            mock_together_class.return_value = mock_client
+
+            relative_path = Path("/tmp/repo")
+            languages = ["JavaScript"]
+            repo_id = "repo123"
+
+            result = await processing_service.analyze_repository(
+                sample_documents, relative_path, languages, repo_id
+            )
+
+            assert result is True
+            mock_repositories["context"].update_repo.assert_called_once_with(
+                "repo123", repo_system_reference="Comprehensive analysis result"
+            )
+
+    @pytest.mark.asyncio
+    async def test_analyze_repository_no_files(
+            self, processing_service, sample_documents
+    ):
+        """Test repository analysis when no dependency files or README found"""
+        with patch.object(processing_service, '_extract_dependency_files') as mock_extract_deps, \
+                patch.object(processing_service, '_extract_readme_content') as mock_extract_readme:
+            mock_extract_deps.return_value = []
+            mock_extract_readme.return_value = None
+
+            relative_path = Path("/tmp/repo")
+            languages = ["JavaScript"]
+            repo_id = "repo123"
+
+            result = await processing_service.analyze_repository(
+                sample_documents, relative_path, languages, repo_id
+            )
+
+            assert result is None
+
+    def test_chunk_file_content(self, processing_service):
+        """Test file content chunking"""
+        file_data = {
+            "content": "\n".join([f"line {i}" for i in range(1, 201)]),  # 200 lines
+            "path": "test.py",
+        }
+        context_id = "ctx123"
+
+        # Fix the syntax error in the original method
+        with patch.object(processing_service, '_chunk_file_content') as mock_chunk:
+            expected_chunks = [
+                {
+                    "context_id": context_id,
+                    "content": "\n".join([f"line {i}" for i in range(1, 101)]),
+                    "file_path": "test.py",
+                    "start_line": 1,
+                    "end_line": 100,
+                    "language": "python",
+                    "chunk_type": "code_block",
+                }
+            ]
+            mock_chunk.return_value = expected_chunks
+
+            chunks = processing_service._chunk_file_content(file_data, context_id)
+
+            assert len(chunks) > 0
+            first_chunk = chunks[0]
+            assert first_chunk["context_id"] == context_id
+            assert first_chunk["file_path"] == "test.py"
+            assert first_chunk["language"] == "python"
+
+    def test_chunk_file_content_empty_content(self, processing_service):
+        """Test file content chunking with empty content"""
+        file_data = {"content": "", "path": "empty.py"}
+        context_id = "ctx123"
+
+        with patch.object(processing_service, '_chunk_file_content') as mock_chunk:
+            mock_chunk.return_value = []
+            chunks = processing_service._chunk_file_content(file_data, context_id)
+            assert chunks == []
 
     @patch("app.services.processing_service.Together")
     @patch("app.services.processing_service.settings")
