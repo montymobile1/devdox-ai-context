@@ -26,6 +26,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+package_json_file = "package.json"
+package_json_lock_file="package-lock.json"
+yarn_lock_file = "yarn.lock"
+build_gradle_file="build.gradle"
+gradle_lockfile_file="gradle.lockfile"
+settings_gradle_file="settings.gradle"
+gradle_properties_file="gradle.properties"
+podfile_lock_file="Podfile.lock"
+podfile_file="Podfile"
+
 DEPENDENCY_FILES = {
     # Backend Languages
     "Python": [
@@ -46,9 +56,9 @@ DEPENDENCY_FILES = {
         ".python-version",
     ],
     "nodejs": [
-        "package.json",
-        "package-lock.json",
-        "yarn.lock",
+        package_json_file,
+        package_json_lock_file,
+        yarn_lock_file,
         "pnpm-lock.yaml",
         ".npmrc",
         ".yarnrc",
@@ -56,11 +66,11 @@ DEPENDENCY_FILES = {
     ],
     "Java": [
         "pom.xml",
-        "build.gradle",
+        build_gradle_file,
         "build.gradle.kts",
-        "gradle.lockfile",
-        "settings.gradle",
-        "gradle.properties",
+        gradle_lockfile_file,
+        settings_gradle_file,
+        gradle_properties_file,
         "ivy.xml",
         "project.clj",
         "deps.edn",
@@ -99,17 +109,17 @@ DEPENDENCY_FILES = {
     "Swift": [
         "Package.swift",
         "Package.resolved",
-        "Podfile",
-        "Podfile.lock",
+        podfile_file,
+         podfile_lock_file,
         "Cartfile",
         "Cartfile.resolved",
     ],
     "kotlin": [
-        "build.gradle",
+        build_gradle_file,
         "build.gradle.kts",
-        "gradle.lockfile",
-        "settings.gradle",
-        "gradle.properties",
+        gradle_lockfile_file,
+        settings_gradle_file,
+        gradle_properties_file,
     ],
     "Scala": [
         "build.sbt",
@@ -123,9 +133,9 @@ DEPENDENCY_FILES = {
     "Dart": ["pubspec.yaml", "pubspec.lock"],
     # Frontend Frameworks
     "JavaScript": [
-        "package.json",
-        "package-lock.json",
-        "yarn.lock",
+        package_json_file,
+        package_json_lock_file,
+        yarn_lock_file,
         "pnpm-lock.yaml",
         ".npmrc",
         ".yarnrc",
@@ -134,9 +144,9 @@ DEPENDENCY_FILES = {
         "component.json",
     ],
     "Vue": [
-        "package.json",
-        "package-lock.json",
-        "yarn.lock",
+        package_json_file,
+        package_json_lock_file,
+        yarn_lock_file,
         "vue.config.js",
         "vite.config.js",
         "vite.config.ts",
@@ -145,22 +155,22 @@ DEPENDENCY_FILES = {
     ],
     # Mobile Platforms
     "Kotlin": [
-        "build.gradle",
+        build_gradle_file,
         "app/build.gradle",
-        "gradle.lockfile",
-        "settings.gradle",
-        "gradle.properties",
+        gradle_lockfile_file,
+        settings_gradle_file,
+        gradle_properties_file,
         "gradle/wrapper/gradle-wrapper.properties",
     ],
     "Objective-C": [
-        "Podfile",
-        "Podfile.lock",
+        podfile_file,
+        podfile_lock_file,
         "Pods",
         "*.xcworkspace",
     ],
     "Objective-C++": [
-        "Podfile",
-        "Podfile.lock",
+        podfile_file,
+        podfile_lock_file,
         "Pods",
         "*.xcworkspace",
     ],
@@ -214,7 +224,7 @@ class ProcessingService:
         logger.info("No README file found")
         return None
 
-    def _analyze_readme_content(self, readme_content: str) -> Dict[str, str]:
+    def _analyze_readme_content(self, readme_content: str) -> List[Dict[str, str]]:
         """Analyze README content to extract structured information"""
         try:
             prompt = f"""Analyze this README file and extract key information in a structured format:
