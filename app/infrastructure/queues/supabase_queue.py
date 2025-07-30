@@ -6,6 +6,9 @@ from typing import Any, Dict, List, Optional
 from tembo_pgmq_python.async_queue import PGMQueue
 from tembo_pgmq_python.messages import Message
 
+from handlers import job_tracker
+from handlers.job_tracker import JobTracker
+
 logger = logging.getLogger(__name__)
 
 
@@ -308,7 +311,7 @@ class SupabaseQueue:
             return None
 
     async def complete_job(
-        self, job_data: Dict[str, Any], result: Dict[str, Any] = None
+        self, job_data: Dict[str, Any], job_tracker_instance:JobTracker, result: Dict[str, Any] = None
     ) -> bool:
         """
         Mark a job as completed
@@ -332,6 +335,7 @@ class SupabaseQueue:
             success = await self.queue.delete(queue_name, msg_id)
             if success:
                 logger.info(f"Job {job_data.get('id')} marked as completed")
+                await job_tracker_instance.completed()
                 return True
             else:
                 logger.error(f"Failed to mark job {job_data.get('id')} as completed")
@@ -345,8 +349,9 @@ class SupabaseQueue:
         self,
         job_data: Dict[str, Any],
         error: str,
+        job_tracker_instance: JobTracker,
         error_trace: str = None,
-        retry: bool = True,
+        retry: bool = True
     ) -> bool:
         """
         Mark a job as failed
@@ -404,16 +409,21 @@ class SupabaseQueue:
 
                 # Delete current message and re-queue with delay
                 await self.queue.delete(queue_name, msg_id)
-                await self.queue.send_delay(queue_name, retry_job_data, retry_delay)
+                reinserted_message_id = await self.queue.send(queue=queue_name, message=retry_job_data, delay=retry_delay)
 
                 logger.info(
                     f"Job {job_data.get('id')} scheduled for retry {attempts}/{max_attempts} in {retry_delay}s"
                 )
+                
+                await job_tracker_instance.retry(message_id=str(reinserted_message_id))
+                
                 return True
             else:
                 # Archive the job as permanently failed
                 success = await self.queue.archive(queue_name, msg_id)
-
+                
+                await job_tracker_instance.fail(message_id=str(msg_id))
+                
                 if success:
                     logger.error(
                         f"Job {job_data.get('id')} permanently failed after {attempts} attempts"
