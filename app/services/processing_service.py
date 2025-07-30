@@ -228,7 +228,7 @@ class ProcessingService:
         """Create prompt for README analysis"""
 
    
-        return  f"""Analyze this README file and extract key information in a structured format:
+        return  """Analyze this README file and extract key information in a structured format:
 
     --- README CONTENT START ---
     {readme_content}
@@ -496,7 +496,7 @@ class ProcessingService:
         overlap = 10
 
         for i in range(0, len(lines), chunk_size - overlap):
-            chunk_lines = lines[i : i chunk_size]
+            chunk_lines = lines[i : i + chunk_size]
             chunk_content = "\n".join(chunk_lines)
 
             if chunk_content.strip():
@@ -592,27 +592,38 @@ class ProcessingService:
     
     Please be specific, actionable, and highlight any insights gained from combining both information sources."""
 
+    def _get_clean_filename(self, chunk: Document) -> str:
+        """Extract and clean filename from chunk metadata"""
+        return chunk.metadata.get("file_name", "").strip()
+
+    def _find_matching_language(self, file_name: str, valid_languages: List[str]) -> str:
+        """Find the first language that matches the file's dependency pattern"""
+        for lang in valid_languages:
+            if self._matches_dependency_pattern(file_name, DEPENDENCY_FILES[lang]):
+                return lang
+        return ""
 
     def _extract_dependency_files(self, chunks: List[Document], relative_path: Path, languages: List[str]) -> List[
         Dict[str, str]]:
         """Extract dependency files content from chunks"""
         dependency_files = []
         processed_files = set()
+        valid_languages = [lang for lang in languages if lang in DEPENDENCY_FILES]
 
-        for lang in languages:
-            if lang not in DEPENDENCY_FILES:
-                continue
 
-            for chunk in chunks:
-                file_name = chunk.metadata.get("file_name", "").strip()
+        for chunk in chunks:
+                file_name = self._get_clean_filename(chunk)
+                # Skip if file already processed or invalid
                 if not file_name or file_name in processed_files:
                     continue
 
-                if self._matches_dependency_pattern(file_name, DEPENDENCY_FILES[lang]):
-                    dependency_file = self._read_dependency_file(chunk, relative_path, lang)
+                matching_language = self._find_matching_language(file_name, valid_languages)
+                if matching_language:
+                    dependency_file = self._read_dependency_file(chunk, relative_path, matching_language)
                     if dependency_file:
                         dependency_files.append(dependency_file)
                         processed_files.add(file_name)
+
 
         return dependency_files
 
