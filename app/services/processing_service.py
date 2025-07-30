@@ -632,42 +632,53 @@ class ProcessingService:
             if lang not in DEPENDENCY_FILES:
                 continue
 
-            for dep_file_pattern in DEPENDENCY_FILES[lang]:
-                for chunk in chunks:
-                    file_name = chunk.metadata.get("file_name", "").strip()
-                    # Handle wildcard patterns
-                    if '*' in dep_file_pattern:
-                        extension = dep_file_pattern.replace('*', '')
-                        if not file_name.endswith(extension):
-                            continue
+            for chunk in chunks:
+                file_name = chunk.metadata.get("file_name", "").strip()
+                if not file_name or file_name in processed_files:
+                    continue
 
-                    elif file_name != dep_file_pattern:
-                        continue
+                if self._matches_dependency_pattern(file_name, DEPENDENCY_FILES[lang]):
+                    dependency_file = self._read_dependency_file(chunk, relative_path, lang)
+                    if dependency_file:
+                        dependency_files.append(dependency_file)
+                        processed_files.add(file_name)
 
-                    if file_name in processed_files:
-                        continue
-
-                    try:
-                        file_path_chunk = relative_path / chunk.metadata.get("file_path", "")
-                        file_path = Path(file_path_chunk).resolve()
-
-                        if file_path.exists():
-                            with file_path.open("r", encoding="utf-8") as f:
-                                content = f.read()
-
-                            dependency_files.append({
-                                "file_name": file_name,
-                                "content": content,
-                                "language": lang
-                            })
-
-                            processed_files.add(file_name)
-
-
-
-                    except Exception as e:
-                        logger.warning(f"Could not read dependency file {file_name}: {e}")
         return dependency_files
+
+    def _matches_dependency_pattern(self, file_name: str, patterns: List[str]) -> bool:
+        """Check if file name matches any dependency pattern"""
+        for pattern in patterns:
+            if '*' in pattern:
+                extension = pattern.replace('*', '')
+                if file_name.endswith(extension):
+                    return True
+            elif file_name == pattern:
+                return True
+        return False
+
+    def _read_dependency_file(self, chunk: Document, relative_path: Path, language: str) -> Optional[Dict[str, str]]:
+        """Read dependency file content and return file info"""
+        try:
+            file_name = chunk.metadata.get("file_name", "").strip()
+            file_path_chunk = relative_path / chunk.metadata.get("file_path", "")
+            file_path = Path(file_path_chunk).resolve()
+
+            if not file_path.exists():
+                return None
+
+            with file_path.open("r", encoding="utf-8") as f:
+                content = f.read()
+
+            return {
+                "file_name": file_name,
+                "content": content,
+                "language": language
+            }
+
+        except Exception as e:
+            logger.warning(f"Could not read dependency file {file_name}: {e}")
+            return None
+
 
     async def analyze_repository(self, chunks: List[Document], relative_path: Path, languages: List[str],  id: str | UUID) -> Optional[
         bool|None]:
