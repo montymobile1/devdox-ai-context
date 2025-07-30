@@ -224,7 +224,7 @@ class ProcessingService:
         logger.info("No README file found")
         return None
 
-    def _analyze_readme_content(self, readme_content: str) -> List[Dict[str, str]]:
+    def _analyze_readme_content(self, readme_content: str) ->  Dict:
         """Analyze README content to extract structured information"""
         try:
             prompt = f"""Analyze this README file and extract key information in a structured format:
@@ -307,48 +307,6 @@ class ProcessingService:
             logger.error(f"Failed to analyze README content: {e}")
             return {'full_analysis': 'Analysis failed', 'project_description': '', 'setup_instructions': ''}
 
-        """Extract dependency files content from chunks"""
-        dependency_files = []
-        processed_files = set()
-
-        for lang in languages:
-            if lang not in self.dependency_files:
-                continue
-
-            for dep_file_pattern in self.dependency_files[lang]:
-                for chunk in chunks:
-                    file_name = chunk.metadata.get("file_name", "").strip()
-
-                    # Handle wildcard patterns
-                    if '*' in dep_file_pattern:
-                        extension = dep_file_pattern.replace('*', '')
-                        if not file_name.endswith(extension):
-                            continue
-                    elif file_name != dep_file_pattern:
-                        continue
-
-                    if file_name in processed_files:
-                        continue
-
-                    try:
-                        file_path_chunk = relative_path / chunk.metadata.get("file_path", "")
-                        file_path = Path(file_path_chunk).resolve()
-
-                        if file_path.exists():
-                            with file_path.open("r", encoding="utf-8") as f:
-                                content = f.read()
-
-                            dependency_files.append({
-                                "file_name": file_name,
-                                "content": content,
-                                "language": lang
-                            })
-                            processed_files.add(file_name)
-
-                    except Exception as e:
-                        logger.warning(f"Could not read dependency file {file_name}: {e}")
-
-        return dependency_files
 
 
     async def prepare_repository(self, repo_name) -> Tuple[Path, str]:
