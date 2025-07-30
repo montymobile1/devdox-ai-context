@@ -226,43 +226,40 @@ class ProcessingService:
 
     def _create_readme_analysis_prompt(self, readme_content: str) -> str:
         """Create prompt for README analysis"""
+        return f"""Analyze this README file and extract key information in a structured format:
 
-   
-        return  """Analyze this README file and extract key information in a structured format:
+        --- README CONTENT START ---
+        {readme_content}
+        --- README CONTENT END ---
 
-    --- README CONTENT START ---
-    {readme_content}
-    --- README CONTENT END ---
+        Please provide the following structured analysis:
 
-    Please provide the following structured analysis:
+        ## Project Description
+        - What does this project do? (1-2 sentences summary)
 
-    ## Project Description
-    - What does this project do? (1-2 sentences summary)
+        ## Key Features
+        - Main features and capabilities mentioned
 
-    ## Key Features
-    - Main features and capabilities mentioned
+        ## Architecture & Technology Stack
+        - Technologies, frameworks, or architectural patterns mentioned
+        - Any specific technical requirements or constraints
 
-    ## Architecture & Technology Stack
-    - Technologies, frameworks, or architectural patterns mentioned
-    - Any specific technical requirements or constraints
+        ## Setup & Installation
+        - Installation steps or requirements mentioned
+        - Dependencies or prerequisites
 
-    ## Setup & Installation
-    - Installation steps or requirements mentioned
-    - Dependencies or prerequisites
+        ## Usage Examples
+        - How to use the project (commands, API examples, etc.)
 
-    ## Usage Examples
-    - How to use the project (commands, API examples, etc.)
+        ## Development Information
+        - Development setup instructions
+        - Testing information
+        - Contribution guidelines
 
-    ## Development Information
-    - Development setup instructions
-    - Testing information
-    - Contribution guidelines
+        ## Additional Context
+        - Any other important information (deployment, security, performance notes, etc.)
 
-    ## Additional Context
-    - Any other important information (deployment, security, performance notes, etc.)
-
-    Keep each section concise but informative. If information is not available in the README, mention "Not specified in README".""".format(readme_content)
-
+        Keep each section concise but informative. If information is not available in the README, mention "Not specified in README"."""
     
     def _analyze_readme_content(self, readme_content: str) ->  Dict:
         """Analyze README content to extract structured information"""
