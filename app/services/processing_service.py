@@ -224,10 +224,11 @@ class ProcessingService:
         logger.info("No README file found")
         return None
 
-    def _analyze_readme_content(self, readme_content: str) ->  Dict:
-        """Analyze README content to extract structured information"""
-        try:
-            prompt = f"""Analyze this README file and extract key information in a structured format:
+    def _create_readme_analysis_prompt(self, readme_content: str) -> str:
+        """Create prompt for README analysis"""
+
+   
+        return  f"""Analyze this README file and extract key information in a structured format:
 
     --- README CONTENT START ---
     {readme_content}
@@ -260,8 +261,13 @@ class ProcessingService:
     ## Additional Context
     - Any other important information (deployment, security, performance notes, etc.)
 
-    Keep each section concise but informative. If information is not available in the README, mention "Not specified in README"."""
+    Keep each section concise but informative. If information is not available in the README, mention "Not specified in README".""".format(readme_content)
 
+    
+    def _analyze_readme_content(self, readme_content: str) ->  Dict:
+        """Analyze README content to extract structured information"""
+        prompt = self._create_readme_analysis_prompt(readme_content)
+        try:
             messages = [{"role": "user", "content": prompt}]
             response = self.together_client.chat.completions.create(
                 model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -490,7 +496,7 @@ class ProcessingService:
         overlap = 10
 
         for i in range(0, len(lines), chunk_size - overlap):
-            chunk_lines = lines[i : i + chunk_size]
+            chunk_lines = lines[i : i chunk_size]
             chunk_content = "\n".join(chunk_lines)
 
             if chunk_content.strip():
@@ -586,41 +592,6 @@ class ProcessingService:
     
     Please be specific, actionable, and highlight any insights gained from combining both information sources."""
 
-    def _create_analysis_dep_prompt(self, dependency_files: List[Dict[str, str]]) -> str:
-            """Create the analysis prompt for the LLM"""
-            files_content = "\n\n".join([
-                f"=== {file['file_name']} ({file['language']}) ===\n{file['content']}"
-                for file in dependency_files
-            ])
-
-            return f"""You are a senior software engineer tasked with analyzing a codebase based on its dependency files.
-
-    Below is the content of a project's dependency/configuration files:
-
-    --- DEPENDENCY FILE CONTENTS START ---
-    {files_content}
-    --- DEPENDENCY FILE CONTENTS END ---
-
-    Please analyze the stack and provide a structured response in the following format:
-
-    ## Technology & Framework Recognition
-    - List the frameworks, runtimes, and libraries being used
-    - Identify the application type (API, CLI, web app, etc.)
-
-    ## Purpose Inference
-    - Based on dependencies, infer what the application is likely meant to do
-    - Describe the intended architecture or domain context
-
-    ## Code Generation Strategy
-    - Recommend what kind of starter code should be generated
-    - Specify architectural patterns to follow
-
-    ## Best Practices & Guidelines
-    - List coding practices to follow based on the stack
-    - Highlight practices to avoid
-    - Include security considerations
-
-    Please be specific and actionable in your recommendations."""
 
     def _extract_dependency_files(self, chunks: List[Document], relative_path: Path, languages: List[str]) -> List[
         Dict[str, str]]:
