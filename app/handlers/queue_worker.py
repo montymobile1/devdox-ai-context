@@ -9,6 +9,7 @@ from app.core.container import Container
 from app.handlers.message_handler import MessageHandler
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.core.config import settings
+from handlers.job_tracker import JobTracker, JobTrackerManager
 
 
 class QueueWorker:
@@ -20,11 +21,13 @@ class QueueWorker:
         worker_id: str = "worker-1",
         message_handler: MessageHandler = Provide[Container.message_handler],
         queue_service: SupabaseQueue = Provide[Container.queue_service],
+        job_tracker_manager: JobTrackerManager = Provide[Container.job_tracker_factory],
     ):
         self.worker_id = worker_id
         self.message_handler = message_handler
         self.queue_service = queue_service
         self.running = False
+        self.job_tracker_manager = job_tracker_manager
         self.stats = {
             "jobs_processed": 0,
             "jobs_failed": 0,
@@ -66,10 +69,27 @@ class QueueWorker:
 
         while self.running:
             try:
+                
+                do_job = False
+                
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
                 if job:
+                    
+                    job_tracker = self.job_tracker_manager.create_tracker(
+                        worker_id=self.worker_id,
+                        queue_name=queue_name
+                    )
+                    
+                    not_claimed = await job_tracker.try_claim(message_id=job.get("id"))
+                    
+                    if not not_claimed:
+                        do_job = False
+                    else:
+                        do_job = True
+                
+                if job and do_job:
                     consecutive_failures = 0  # Reset failure counter
-                    await self._process_job(queue_name, job)
+                    await self._process_job(queue_name, job, job_tracker_instance=job_tracker)
                 else:
                     # No jobs available, wait before checking again
                     await asyncio.sleep(settings.QUEUE_POLLING_INTERVAL_SECONDS or 5)
@@ -85,7 +105,7 @@ class QueueWorker:
                 backoff_time = min(60, 2**consecutive_failures)
                 await asyncio.sleep(backoff_time)
 
-    async def _process_job(self, queue_name: str, job: Dict[str, Any]):
+    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracker_instance):
         """Process a single job with comprehensive error handling and monitoring"""
         job_id = job.get("id", "unknown")
         job_type = job.get("job_type", "unknown")
@@ -97,10 +117,11 @@ class QueueWorker:
         try:
             # Route job to appropriate handler based on queue and type
             if queue_name == "processing" and job_type in ["analyze", "process"]:
-                await self.message_handler.handle_processing_message(payload)
+                await job_tracker_instance.start()
+                await self.message_handler.handle_processing_message(payload, job_tracker_instance)
 
             # Mark job as completed
-            await self.queue_service.complete_job(job)
+            await self.queue_service.complete_job(job, job_tracker_instance=job_tracker_instance)
 
             # Update statistics
             self.stats["jobs_processed"] += 1
@@ -113,7 +134,7 @@ class QueueWorker:
             self.stats["jobs_failed"] += 1
 
             # Mark job as failed with error details
-            await self.queue_service.fail_job(job_id, str(e))
+            await self.queue_service.fail_job(job, str(e), job_tracker_instance=job_tracker_instance)
 
         finally:
             self.stats["current_job"] = None
