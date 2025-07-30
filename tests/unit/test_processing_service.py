@@ -314,7 +314,7 @@ class TestProcessingService:
 
     def test_matches_dependency_pattern(self, processing_service):
         """Test dependency pattern matching"""
-        patterns = ["package.json", "*.lock", "requirements.txt"]
+        patterns = ["package.json", "*.lock", "requirements.txt", "*.json"]
 
         test_cases = [
             ("package.json", True),
@@ -350,11 +350,11 @@ class TestProcessingService:
 
     def test_extract_readme_content_found(self, processing_service, sample_documents):
         """Test README extraction when file is found"""
-        with patch("builtins.open", mock_open(read_data="# Test README")), \
-                patch("pathlib.Path.exists", return_value=True):
+        mock_file_content= mock_open(read_data="# Test README")
+        with patch("pathlib.Path.exists", return_value=True), \
+                patch("pathlib.Path.open", mock_file_content):
             relative_path = Path("/tmp/repo")
             result = processing_service._extract_readme_content(sample_documents, relative_path)
-
             assert result == "# Test README"
 
     def test_extract_readme_content_not_found(self, processing_service):
