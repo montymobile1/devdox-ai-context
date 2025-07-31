@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -310,7 +311,7 @@ class SupabaseQueue:
             )
             return None
 
-    async def complete_job(self, job_data: Dict[str, Any], job_tracker_instance:JobTracker=None, job_tracer:Optional[JobTraceMetaData] = None, result: Dict[str, Any] = None) -> bool:
+    async def complete_job(self, job_data: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, job_tracer:Optional[JobTraceMetaData] = None, result: Dict[str, Any] = None) -> bool:
         """
         Mark a job as completed
 
@@ -321,7 +322,6 @@ class SupabaseQueue:
         Returns:
             bool: True if job was successfully marked as completed
         """
-        
         try:
             await self._ensure_initialized()
             msg_id = job_data.get("pgmq_msg_id")
@@ -368,12 +368,12 @@ class SupabaseQueue:
                 )
             
             return False
-    
+
     async def fail_job(
         self,
         job_data: Dict[str, Any],
         error: BaseException,
-        job_tracker_instance: JobTracker=None,
+        job_tracker_instance:Optional[JobTracker]=None,
         job_tracer:Optional[JobTraceMetaData] = None,
         error_trace: str = None,
         retry: bool = True,
@@ -385,6 +385,7 @@ class SupabaseQueue:
             job_data: Job data returned from dequeue
             job_tracer: An optional job tracer for tracing the state of the job
             error: Error message
+            job_tracker_instance: Optional job tracker to handle claim and tracking
             error_trace: Full error traceback
             retry: Whether to retry the job if attempts remain
 

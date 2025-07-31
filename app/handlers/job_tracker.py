@@ -2,6 +2,7 @@ import datetime
 import logging
 from enum import Enum
 
+from app.core.exceptions.custom_exceptions import DevDoxAPIException
 from models.queue_job_claim_registry import QRegistryStat, queue_processing_registry_one_claim_unique, QueueProcessingRegistry
 from tortoise.exceptions import IntegrityError
 
@@ -26,7 +27,7 @@ class JobTracker:
         self.worker_id= worker_id
         self.queue_name = queue_name
         self.step = None
-
+        
     async def try_claim(self, message_id) -> bool:
         """
         Attempt to claim the job. If already claimed for active status, return False.
@@ -72,7 +73,7 @@ class JobTracker:
                 return False  # Someone else already claimed it
             
             raise
-        except Exception as e:
+        except Exception:
             logging.exception("Exception occurred while attempted to try_claim")
             raise
         
