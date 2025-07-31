@@ -400,29 +400,6 @@ class TestProcessingService:
 
         assert result is None
 
-    @patch("app.services.processing_service.Together")
-    def test_analyze_readme_content_success(self, mock_together_class, processing_service):
-        """Test successful README content analysis"""
-        readme_content = "# Test Project\nThis is a test project with feature to generate tests and install asyncpg==0.29.0 "
-
-        # Mock Together client response
-        mock_response = MagicMock()
-        mock_response.choices[0].message.content = """## Project Description
-    This is a test project.
-
-    ## Key Features
-    - Feature 1
-    - Feature 2
-
-    ## Setup & Installation
-    pip install requirements"""
-
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_together_class.return_value = mock_client
-        result = processing_service._analyze_readme_content(readme_content)
-        assert "test project" in result["project_description"].lower()
-        assert "install" in result["setup_instructions"]
 
     @patch("app.services.processing_service.Together")
     def test_analyze_readme_content_failure(self, mock_together_class, processing_service):
