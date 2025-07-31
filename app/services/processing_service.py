@@ -22,7 +22,7 @@ from app.handlers.utils.repo_fetcher import RepoFetcher
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
-from handlers.job_tracker import JobLevels, JobTracker
+from app.handlers.job_tracker import JobLevels, JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(self, job_payload: Dict[str, Any], job_tracker_instance:JobTracker) -> ProcessingResult:
+    async def process_repository(self, job_payload: Dict[str, Any], job_tracker_instance:JobTracker=None) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
@@ -109,7 +109,8 @@ class ProcessingService:
                 repo.html_url, relative_path, job_payload.get("branch", "production")
             )
             
-            await job_tracker_instance.update_step(JobLevels.FILE_CLONED)
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.FILE_CLONED)
             
             repo_local = Repo(relative_path)
             commit_hash = repo_local.head.commit.hexsha
@@ -131,7 +132,8 @@ class ProcessingService:
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
             
-            await job_tracker_instance.update_step(JobLevels.GENERATE_EMBEDS)
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.GENERATE_EMBEDS)
             
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
@@ -141,7 +143,8 @@ class ProcessingService:
                 commit_number=commit_hash,
             )
             
-            await job_tracker_instance.update_step(JobLevels.STORE_EMBEDS)
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.STORE_EMBEDS)
             
             # Update context completion
             end_time = datetime.now(timezone.utc)

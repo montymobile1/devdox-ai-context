@@ -34,6 +34,7 @@ class TestQueueWorker:
             worker_id="test-worker",
             message_handler=mock_message_handler,
             queue_service=mock_queue_service,
+            job_tracker_manager=None
         )
 
     def test_init(self, queue_worker, mock_message_handler, mock_queue_service):
@@ -138,8 +139,8 @@ class TestQueueWorker:
         await queue_worker._worker_loop("processing", ["analyze", "process"])
 
         assert queue_worker._process_job.call_count == 2
-        queue_worker._process_job.assert_any_call("processing", job1)
-        queue_worker._process_job.assert_any_call("processing", job2)
+        queue_worker._process_job.assert_any_call("processing", job1, job_tracker_instance=None)
+        queue_worker._process_job.assert_any_call("processing", job2, job_tracker_instance=None)
 
     @pytest.mark.asyncio
     @patch("asyncio.sleep")
@@ -184,11 +185,11 @@ class TestQueueWorker:
 
         # Verify handler was called
         queue_worker.message_handler.handle_processing_message.assert_called_once_with(
-            {"repo_id": "repo-456"}
+            {"repo_id": "repo-456"}, None
         )
 
         # Verify job was completed
-        queue_worker.queue_service.complete_job.assert_called_once_with(job)
+        queue_worker.queue_service.complete_job.assert_called_once_with(job, job_tracker_instance=None)
 
         # Verify stats updated
         assert queue_worker.stats["jobs_processed"] == 1
@@ -211,9 +212,9 @@ class TestQueueWorker:
         await queue_worker._process_job("processing", job)
 
         queue_worker.message_handler.handle_processing_message.assert_called_once_with(
-            {"context_id": "ctx-789"}
+            {"context_id": "ctx-789"}, None
         )
-        queue_worker.queue_service.complete_job.assert_called_once_with(job)
+        queue_worker.queue_service.complete_job.assert_called_once_with(job, job_tracker_instance=None)
         assert queue_worker.stats["jobs_processed"] == 1
 
     @pytest.mark.asyncio
@@ -230,7 +231,7 @@ class TestQueueWorker:
         queue_worker.message_handler.handle_processing_message.assert_not_called()
 
         # Job should still be completed (no error occurred)
-        queue_worker.queue_service.complete_job.assert_called_once_with(job)
+        queue_worker.queue_service.complete_job.assert_called_once_with(job, job_tracker_instance=None)
         assert queue_worker.stats["jobs_processed"] == 1
 
     @pytest.mark.asyncio
@@ -254,7 +255,7 @@ class TestQueueWorker:
 
         # Verify job was marked as failed
         queue_worker.queue_service.fail_job.assert_called_once_with(
-            "job-fail", "Handler error"
+            job, 'Handler error', job_tracker_instance=None
         )
 
         # Verify stats updated
@@ -271,7 +272,7 @@ class TestQueueWorker:
 
         # Should handle gracefully with "unknown" ID
         queue_worker.message_handler.handle_processing_message.assert_called_once()
-        queue_worker.queue_service.complete_job.assert_called_once_with(job)
+        queue_worker.queue_service.complete_job.assert_called_once_with(job, job_tracker_instance=None)
 
     def test_get_stats(self, queue_worker):
         """Test getting worker statistics"""
