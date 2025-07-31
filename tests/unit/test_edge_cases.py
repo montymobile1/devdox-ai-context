@@ -428,6 +428,7 @@ class TestRaceConditionSimulation:
                 worker_id=f"concurrent-worker-{i}",
                 message_handler=mock_handler,
                 queue_service=mock_queue,
+                job_tracker_manager=None
             )
             workers.append(worker)
 
