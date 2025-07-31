@@ -14,7 +14,7 @@ from app.services.auth_service import AuthService
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.services.processing_service import ProcessingService
 from app.core.config import settings
-from handlers.job_tracker import JobTrackerManager
+from app.handlers.job_tracker import JobTrackerManager
 
 
 class Container(containers.DeclarativeContainer):

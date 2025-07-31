@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from dependency_injector.wiring import Provide, inject
 
@@ -9,7 +9,7 @@ from app.core.container import Container
 from app.handlers.message_handler import MessageHandler
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.core.config import settings
-from handlers.job_tracker import JobTracker, JobTrackerManager
+from app.handlers.job_tracker import JobTrackerManager
 
 
 class QueueWorker:
@@ -21,13 +21,13 @@ class QueueWorker:
         worker_id: str = "worker-1",
         message_handler: MessageHandler = Provide[Container.message_handler],
         queue_service: SupabaseQueue = Provide[Container.queue_service],
-        job_tracker_manager: JobTrackerManager = Provide[Container.job_tracker_factory],
+        job_tracker_manager: Optional[JobTrackerManager] = Provide[Container.job_tracker_factory],
     ):
         self.worker_id = worker_id
         self.message_handler = message_handler
         self.queue_service = queue_service
         self.running = False
-        self.job_tracker_manager = job_tracker_manager
+        self.job_tracker_manager = job_tracker_manager or None
         self.stats = {
             "jobs_processed": 0,
             "jobs_failed": 0,
@@ -75,12 +75,16 @@ class QueueWorker:
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
                 if job:
                     
-                    job_tracker = self.job_tracker_manager.create_tracker(
-                        worker_id=self.worker_id,
-                        queue_name=queue_name
-                    )
-                    
-                    not_claimed = await job_tracker.try_claim(message_id=job.get("id"))
+                    job_tracker = None
+                    if self.job_tracker_manager:
+                        job_tracker = self.job_tracker_manager.create_tracker(
+                            worker_id=self.worker_id,
+                            queue_name=queue_name
+                        )
+                        
+                        not_claimed = await job_tracker.try_claim(message_id=job.get("id"))
+                    else:
+                        not_claimed = True
                     
                     if not not_claimed:
                         do_job = False
@@ -105,7 +109,7 @@ class QueueWorker:
                 backoff_time = min(60, 2**consecutive_failures)
                 await asyncio.sleep(backoff_time)
 
-    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracker_instance):
+    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracker_instance=None):
         """Process a single job with comprehensive error handling and monitoring"""
         job_id = job.get("id", "unknown")
         job_type = job.get("job_type", "unknown")
@@ -117,7 +121,9 @@ class QueueWorker:
         try:
             # Route job to appropriate handler based on queue and type
             if queue_name == "processing" and job_type in ["analyze", "process"]:
-                await job_tracker_instance.start()
+                
+                if job_tracker_instance:
+                    await job_tracker_instance.start()
                 await self.message_handler.handle_processing_message(payload, job_tracker_instance)
 
             # Mark job as completed
