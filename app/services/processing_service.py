@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Optional, Tuple
 from app.infrastructure.database.repositories import (
     TortoiseContextRepository,
     TortoiseUserRepository,
@@ -76,7 +76,7 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(self, job_payload: Dict[str, Any], job_tracker_instance:JobTracker=None) -> ProcessingResult:
+    async def process_repository(self, job_payload: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
