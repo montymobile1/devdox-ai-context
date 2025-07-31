@@ -546,7 +546,7 @@ class ProcessingService:
     {readme_analysis.get('full_analysis', 'No README analysis available')}
     --- END README ANALYSIS ---"""
 
-            return f"""You are a senior software engineer tasked with analyzing a codebase. You have access to both dependency files and README analysis.
+        prompt = f"""You are a senior software engineer tasked with analyzing a codebase. You have access to both dependency files and README analysis.
     
     --- DEPENDENCY FILE CONTENTS START ---
     {files_content}
@@ -588,6 +588,7 @@ class ProcessingService:
     - Recommendations for project structure improvements
     
     Please be specific, actionable, and highlight any insights gained from combining both information sources."""
+        return prompt
 
     def _get_clean_filename(self, chunk: Document) -> str:
         """Extract and clean filename from chunk metadata"""

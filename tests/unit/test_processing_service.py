@@ -184,6 +184,22 @@ class TestProcessingService:
         result = processing_service._find_matching_language(file_name, languages)
         assert result == ""
 
+    def test_read_dependency_file_permission_error(self, processing_service):
+        """Test dependency file reading with permission error"""
+        chunk = Document(
+            page_content="",
+            metadata={"file_name": "protected.txt", "file_path": "protected.txt"}
+        )
+
+        with patch("pathlib.Path.exists", return_value=True), \
+                patch("pathlib.Path.open", side_effect=PermissionError("Access denied")):
+            relative_path = Path("/tmp/repo")
+            language = "Python"
+
+            result = processing_service._read_dependency_file(chunk, relative_path, language)
+            assert result is None
+
+
     def test_read_dependency_file_encoding_error(self, processing_service):
         """Test dependency file reading with encoding error"""
         chunk = Document(
@@ -199,6 +215,111 @@ class TestProcessingService:
             result = processing_service._read_dependency_file(chunk, relative_path, language)
             assert result is None
 
+    def test_extract_readme_content_case_variations(self, processing_service):
+        """Test README extraction with different case variations"""
+        documents = [
+            Document(
+                page_content="",
+                metadata={"file_name": "readme.txt", "file_path": "readme.txt"}
+            ),
+            Document(
+                page_content="",
+                metadata={"file_name": "README.rst", "file_path": "README.rst"}
+            )
+        ]
+
+        mock_file_content = mock_open(read_data="# Test README")
+        with patch("pathlib.Path.exists", return_value=True), \
+                patch("pathlib.Path.open", mock_file_content):
+            relative_path = Path("/tmp/repo")
+            result = processing_service._extract_readme_content(documents, relative_path)
+            assert result == "# Test README"
+
+    def test_extract_readme_content_file_read_error(self, processing_service):
+        """Test README extraction with file reading error"""
+        documents = [
+            Document(
+                page_content="",
+                metadata={"file_name": "README.md", "file_path": "README.md"}
+            )
+        ]
+
+        with patch("pathlib.Path.exists", return_value=True), \
+                patch("pathlib.Path.open", side_effect=IOError("Read error")):
+            relative_path = Path("/tmp/repo")
+            result = processing_service._extract_readme_content(documents, relative_path)
+            assert result is None
+
+    def test_extract_dependency_files_invalid_language(self, processing_service):
+        """Test dependency file extraction with invalid language"""
+        documents = [
+            Document(
+                page_content="",
+                metadata={"file_name": "package.json", "file_path": "package.json"}
+            )
+        ]
+
+        relative_path = Path("/tmp/repo")
+        languages = ["InvalidLanguage"]  # Not in DEPENDENCY_FILES
+
+        result = processing_service._extract_dependency_files(
+            documents, relative_path, languages
+        )
+
+        assert result == []
+
+    def test_create_comprehensive_analysis_prompt_no_readme(self, processing_service):
+        """Test comprehensive analysis prompt creation without README"""
+        dependency_files = [
+            {
+                "file_name": "requirements.txt",
+                "content": "flask==2.0.0\nrequests==2.25.1",
+                "language": "Python"
+            }
+        ]
+
+        prompt = processing_service._create_comprehensive_analysis_prompt(
+            dependency_files, None
+        )
+        print("prompt ", prompt)
+        assert "requirements.txt" in prompt
+        assert "Python" in prompt
+        assert "flask==2.0.0" in prompt
+        assert "README ANALYSIS" not in prompt
+
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.Together")
+    async def test_analyze_repository_api_failure(
+            self, mock_together_class, processing_service, mock_repositories
+    ):
+        """Test repository analysis with API failure"""
+        documents = [
+            Document(
+                page_content="",
+                metadata={"file_name": "package.json", "file_path": "package.json"}
+            )
+        ]
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+        mock_together_class.return_value = mock_client
+
+        with patch.object(processing_service, '_extract_dependency_files') as mock_extract_deps, \
+                patch.object(processing_service, '_extract_readme_content') as mock_extract_readme:
+            mock_extract_deps.return_value = [
+                {"file_name": "package.json", "content": "{}", "language": "JavaScript"}
+            ]
+            mock_extract_readme.return_value = "# Test"
+
+            relative_path = Path("/tmp/repo")
+            languages = ["JavaScript"]
+            repo_id = "repo123"
+
+            result = await processing_service.analyze_repository(
+                documents, relative_path, languages, repo_id
+            )
+
+            assert result is None
 
     @pytest.mark.asyncio
     @patch("shutil.rmtree")
@@ -274,6 +395,33 @@ class TestProcessingService:
 
         assert result == []
 
+    @patch("app.services.processing_service.GitLoader")
+    def test_clone_and_process_repository_custom_branch(
+            self, mock_git_loader, processing_service
+    ):
+        """Test repository cloning with custom branch"""
+        repo_url = "https://github.com/test/test-repo"
+        branch = "develop"
+
+        mock_documents = [
+            Document(page_content="content", metadata={"source": "file.py"})
+        ]
+
+        mock_loader_instance = MagicMock()
+        mock_loader_instance.load.return_value = mock_documents
+        mock_git_loader.return_value = mock_loader_instance
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result = processing_service.clone_and_process_repository(
+                repo_url, tmp_dir, branch
+            )
+
+            assert result == mock_documents
+            # Verify GitLoader was called with custom branch
+            call_args = mock_git_loader.call_args
+            assert call_args[1]['branch'] == branch
+
+
     @pytest.mark.asyncio
     async def test_get_authenticated_git_client(
         self,
@@ -315,6 +463,55 @@ class TestProcessingService:
                 sample_git_config.token_value, "decrypted_db_token"
             )
             mock_create_client.assert_called_once_with(git_provider, "decrypted_token")
+
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.Repo")
+    async def test_process_repository_embeddings_storage_failure(
+            self, mock_repo_class, processing_service, mock_repositories
+    ):
+        """Test repository processing with embeddings storage failure"""
+        job_payload = {
+            "context_id": "ctx123",
+            "repo_id": "repo456",
+            "user_id": "user789",
+            "git_provider": "github",
+            "git_token": "token123",
+        }
+
+        sample_repo = MagicMock()
+        sample_repo.id = "repo456"
+        sample_repo.repo_name = "test-repo"
+        sample_repo.html_url = "https://github.com/test/test-repo"
+        sample_repo.user_id = "user789"
+        sample_repo.language = ["Python"]
+
+        mock_repositories["repo"].find_by_repo_id.return_value = sample_repo
+        mock_repositories["code_chunks"].store_emebeddings.side_effect = Exception("Storage failed")
+
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.head.commit.hexsha = "abc123"
+        mock_repo_class.return_value = mock_repo_instance
+
+        # Mock other methods
+        processing_service._get_authenticated_git_client = AsyncMock()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
+        processing_service.clone_and_process_repository = MagicMock(return_value=[
+            Document(page_content="test", metadata={"source": "test.py"})
+        ])
+        processing_service._process_files_to_chunks = MagicMock(return_value=[
+            Document(page_content="chunk", metadata={"source": "test.py"})
+        ])
+        processing_service.analyze_repository = AsyncMock(return_value=True)
+        processing_service._create_embeddings = MagicMock(return_value=[
+            {"chunk_id": "1", "embedding": [0.1, 0.2]}
+        ])
+
+        result = await processing_service.process_repository(job_payload)
+
+        assert result.success is False
+        assert "Storage failed" in result.error_message
+
 
     @patch("app.services.processing_service.RecursiveCharacterTextSplitter")
     def test_process_files_to_chunks(
