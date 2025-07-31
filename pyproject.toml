@@ -42,14 +42,14 @@ dependencies = [
     "langchain-together==0.3.0",
     "together==1.5.17",
     "tiktoken==0.7",
-    "models @ git+https://github.com/montymobile1/devdox-ai-models.git@fe555c9",
+    "models @ git+https://github.com/montymobile1/devdox-ai-models.git@430c9a1",
     "devdox-ai-encryption @ git+https://github.com/montymobile1/devdox-ai-encryption.git@4eefae1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
+    "pytest-asyncio==1.1.0",
     "pytest-cov>=4.1.0",
     "coverage>=7.2.0",
     "black>=23.7.0",
