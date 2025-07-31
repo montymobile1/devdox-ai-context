@@ -9,7 +9,7 @@ from app.core.container import Container
 from app.handlers.message_handler import MessageHandler
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.core.config import settings
-from app.handlers.job_tracker import JobTrackerManager
+from app.handlers.job_tracker import JobTracker, JobTrackerManager
 
 
 class QueueWorker:
@@ -70,28 +70,22 @@ class QueueWorker:
         while self.running:
             try:
                 
-                do_job = False
+                can_claim = False
+                job_tracker = None
                 
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
                 if job:
-                    
-                    job_tracker = None
                     if self.job_tracker_manager:
                         job_tracker = self.job_tracker_manager.create_tracker(
                             worker_id=self.worker_id,
                             queue_name=queue_name
                         )
                         
-                        not_claimed = await job_tracker.try_claim(message_id=job.get("id"))
+                        can_claim = await job_tracker.try_claim(message_id=job.get("id"))
                     else:
-                        not_claimed = True
-                    
-                    if not not_claimed:
-                        do_job = False
-                    else:
-                        do_job = True
+                        can_claim = True
                 
-                if job and do_job:
+                if job and can_claim:
                     consecutive_failures = 0  # Reset failure counter
                     await self._process_job(queue_name, job, job_tracker_instance=job_tracker)
                 else:
@@ -109,7 +103,7 @@ class QueueWorker:
                 backoff_time = min(60, 2**consecutive_failures)
                 await asyncio.sleep(backoff_time)
 
-    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracker_instance=None):
+    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None):
         """Process a single job with comprehensive error handling and monitoring"""
         job_id = job.get("id", "unknown")
         job_type = job.get("job_type", "unknown")

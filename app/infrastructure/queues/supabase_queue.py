@@ -310,7 +310,7 @@ class SupabaseQueue:
             return None
 
     async def complete_job(
-        self, job_data: Dict[str, Any], job_tracker_instance:JobTracker=None, result: Dict[str, Any] = None
+        self, job_data: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, result: Dict[str, Any] = None
     ) -> bool:
         """
         Mark a job as completed
@@ -351,7 +351,7 @@ class SupabaseQueue:
         self,
         job_data: Dict[str, Any],
         error: str,
-        job_tracker_instance: JobTracker=None,
+        job_tracker_instance:Optional[JobTracker]=None,
         error_trace: str = None,
         retry: bool = True
     ) -> bool:
@@ -361,6 +361,7 @@ class SupabaseQueue:
         Args:
             job_data: Job data returned from dequeue
             error: Error message
+            job_tracker_instance: Optional job tracker to handle claim and tracking
             error_trace: Full error traceback
             retry: Whether to retry the job if attempts remain
 
