@@ -139,6 +139,67 @@ class TestProcessingService:
         )
         assert processing_service.base_dir == Path("app/repos")
 
+    def test_get_clean_filename_with_whitespace(self, processing_service):
+        """Test filename cleaning with whitespace"""
+        chunk = Document(
+            page_content="",
+            metadata={"file_name": "  package.json  "}
+        )
+        result = processing_service._get_clean_filename(chunk)
+        assert result == "package.json"
+
+    def test_get_clean_filename_empty(self, processing_service):
+        """Test filename cleaning with empty filename"""
+        chunk = Document(
+            page_content="",
+            metadata={"file_name": ""}
+        )
+        result = processing_service._get_clean_filename(chunk)
+        assert result == ""
+
+    def test_get_clean_filename_missing_metadata(self, processing_service):
+        """Test filename cleaning with missing metadata"""
+        chunk = Document(page_content="", metadata={})
+        result = processing_service._get_clean_filename(chunk)
+        assert result == ""
+
+    def test_find_matching_language_multiple_matches(self, processing_service):
+        """Test language matching when multiple languages could match"""
+        file_name = "build.gradle"
+        languages = ["Java", "kotlin", "Scala"]
+        result = processing_service._find_matching_language(file_name, languages)
+        assert result == "Java"  # Should return first match
+
+    def test_find_matching_language_no_match(self, processing_service):
+        """Test language matching with no matches"""
+        file_name = "unknown.xyz"
+        languages = ["Python", "JavaScript"]
+        result = processing_service._find_matching_language(file_name, languages)
+        assert result == ""
+
+    def test_find_matching_language_empty_languages(self, processing_service):
+        """Test language matching with empty language list"""
+        file_name = "package.json"
+        languages = []
+        result = processing_service._find_matching_language(file_name, languages)
+        assert result == ""
+
+    def test_read_dependency_file_encoding_error(self, processing_service):
+        """Test dependency file reading with encoding error"""
+        chunk = Document(
+            page_content="",
+            metadata={"file_name": "binary.lock", "file_path": "binary.lock"}
+        )
+
+        with patch("pathlib.Path.exists", return_value=True), \
+                patch("pathlib.Path.open", side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "invalid")):
+            relative_path = Path("/tmp/repo")
+            language = "Python"
+
+            result = processing_service._read_dependency_file(chunk, relative_path, language)
+            assert result is None
+
+
     @pytest.mark.asyncio
     @patch("shutil.rmtree")
     async def test_prepare_repository_existing_path(
