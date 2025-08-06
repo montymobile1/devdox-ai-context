@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from dependency_injector.wiring import Provide, inject
 import httpx
 
@@ -7,6 +7,7 @@ import httpx
 from app.services.auth_service import AuthService
 from app.services.processing_service import ProcessingService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
+from app.handlers.job_tracker import JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,13 @@ class MessageHandler:
         self.processing_service = processing_service
         self.queue_service = queue_service
 
-    async def handle_processing_message(self, job_payload: Dict[str, Any]) -> None:
+    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None) -> None:
         """Handle repository processing message"""
 
         try:
             # Process the repository
-            result = await self.processing_service.process_repository(job_payload)
+            result = await self.processing_service.process_repository(job_payload, job_tracker_instance)
+            
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
 
