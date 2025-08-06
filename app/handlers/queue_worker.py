@@ -76,17 +76,20 @@ class QueueWorker:
             try:
                 
                 can_claim = False
-                job_tracker = None
+                tracked_job = None
                 
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
                 if job:
                     if self.job_tracker_manager:
-                        job_tracker = self.job_tracker_manager.create_tracker(
+                        
+                        claim_result = await self.job_tracker_manager.try_claim(
                             worker_id=self.worker_id,
-                            queue_name=queue_name
+                            queue_name=queue_name,
+                            message_id=job.get("id")
                         )
                         
-                        can_claim = await job_tracker.try_claim(message_id=job.get("id"))
+                        can_claim = claim_result.qualifies_for_tracking
+                        tracked_job = claim_result.tracker
                     else:
                         can_claim = True
                 
@@ -98,7 +101,7 @@ class QueueWorker:
                     else:
                         job_tracer = None
                     
-                    await self._process_job(queue_name, job, job_tracker_instance=job_tracker, job_tracer=job_tracer)
+                    await self._process_job(queue_name, job, job_tracker_instance=tracked_job, job_tracer=job_tracer)
                 else:
                     # No jobs available, wait before checking again
                     await asyncio.sleep(settings.QUEUE_POLLING_INTERVAL_SECONDS or 5)
