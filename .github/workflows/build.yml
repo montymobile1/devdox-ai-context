@@ -5,6 +5,13 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: read
+
 jobs:
   bandit-analysis:
     runs-on: ubuntu-latest
