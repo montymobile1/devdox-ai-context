@@ -6,11 +6,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: read
-  security-events: write
-  actions: read
-  pull-requests: read
 
 jobs:
   bandit-analysis:
@@ -188,6 +183,9 @@ jobs:
         run: cp app/.env.example app/.env
 
       - name: Run Snyk to check Docker image for vulnerabilities
+        permissions:
+          security-events: write
+          contents: read
         # Snyk can be used to break the build when it detects vulnerabilities.
         # In this case we want to upload the issues to GitHub Code Scanning
         continue-on-error: true
