@@ -26,7 +26,7 @@ class TestEdgeCases:
         mock_settings.WORKER_CONCURRENCY = 0
 
         # Should handle zero workers gracefully
-        service.start_workers()
+        await  service.start_workers()
 
         assert len(service.workers) == 0
 

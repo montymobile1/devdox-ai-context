@@ -660,18 +660,36 @@ class TestProcessingService:
 
 
     @patch("app.services.processing_service.Together")
-    def test_analyze_readme_content_failure(self, mock_together_class, processing_service):
-        """Test README analysis failure"""
-        readme_content = "# Test Project"
+    def test_analyze_readme_content_failure(self, mock_together_class):
+        """Test README analysis failure - Mock Together class during instantiation"""
 
+        # Set up the mock BEFORE creating the service
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = Exception("API Error")
         mock_together_class.return_value = mock_client
 
+        # Now create the service (it will use our mocked Together client)
+        processing_service = ProcessingService(
+            context_repository=MagicMock(),
+            user_info=MagicMock(),
+            repo_repository=MagicMock(),
+            git_label_repository=MagicMock(),
+            encryption_service=MagicMock(),
+            code_chunks_repository=MagicMock()
+        )
+
+        readme_content = "# Test Project"
+
         result = processing_service._analyze_readme_content(readme_content)
 
+        # Verify the exception was caught and returned the expected failure response
         assert result["full_analysis"] == "Analysis failed"
         assert result["project_description"] == ""
+        assert result["setup_instructions"] == ""
+
+        # Verify the API was actually called
+        mock_client.chat.completions.create.assert_called_once()
+
 
     def test_extract_dependency_files(self, processing_service, sample_documents):
         """Test dependency files extraction"""
@@ -1292,7 +1310,6 @@ class TestProcessingServiceIntegration:
 
         # Process
         result = await service.process_repository(payload)
-        print("result line 529 ", result)
         # Verify success with empty results
         assert result.success is True
         assert result.context_id == "ctx123"
