@@ -344,3 +344,156 @@ class TestErrorHandling:
             # Remove assertion for non-existent attribute
 
 
+class TestWorkerMonitoring:
+    """Test worker monitoring and restart functionality"""
+
+    @pytest.fixture
+    def worker_service(self):
+        return WorkerService()
+
+    @pytest.mark.asyncio
+    async def test_run_worker_with_monitoring_normal_operation(self, worker_service):
+        """Test worker monitoring with normal operation"""
+        mock_worker = MagicMock()
+        mock_worker.worker_id = "test-worker"
+
+        call_count = 0
+
+        async def stop_after_iterations():
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:  # Run twice then stop
+                worker_service.running = False
+
+        mock_worker.start = AsyncMock(side_effect=stop_after_iterations)
+        worker_service.running = True
+
+        await worker_service._run_worker_with_monitoring(mock_worker)
+
+        # Verify worker.start was called multiple times
+        assert mock_worker.start.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_run_worker_with_monitoring_worker_exception(self, worker_service):
+        """Test worker monitoring handles worker exceptions"""
+        mock_worker = MagicMock()
+        mock_worker.worker_id = "error-worker"
+
+        call_count = 0
+
+        async def fail_then_succeed():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("Worker failed")
+            else:
+                worker_service.running = False  # Stop after error recovery
+
+        mock_worker.start = AsyncMock(side_effect=fail_then_succeed)
+        worker_service.running = True
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await worker_service._run_worker_with_monitoring(mock_worker)
+
+            # Verify error handling sleep was called
+            mock_sleep.assert_called_with(10)
+            assert mock_worker.start.call_count == 2
+
+
+    @pytest.mark.asyncio
+    async def test_run_worker_with_monitoring_shutdown_event(self, worker_service):
+        """Test worker monitoring respects shutdown event"""
+        mock_worker = MagicMock()
+        mock_worker.worker_id = "shutdown-worker"
+        mock_worker.start = AsyncMock()
+
+        worker_service.running = True
+        worker_service._shutdown_event.set()  # Signal shutdown
+
+        await worker_service._run_worker_with_monitoring(mock_worker)
+
+        # Should not call worker.start when shutdown event is set
+        mock_worker.start.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_worker_with_monitoring_restart_delay(self, worker_service):
+        """Test worker restart delay functionality"""
+        mock_worker = MagicMock()
+        mock_worker.worker_id = "restart-worker"
+
+        call_count = 0
+
+        async def restart_scenario():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return  # First call succeeds but exits
+            else:
+                worker_service.running = False  # Stop on second iteration
+
+        mock_worker.start = AsyncMock(side_effect=restart_scenario)
+        worker_service.running = True
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await worker_service._run_worker_with_monitoring(mock_worker)
+
+            # Verify restart delay was called
+            mock_sleep.assert_called_with(5)
+            assert mock_worker.start.call_count == 2
+
+
+class TestTaskManagement:
+    """Test task management and cleanup"""
+
+    @pytest.fixture
+    def worker_service(self):
+        return WorkerService()
+
+    def test_start_workers_task_storage(self, worker_service):
+        """Test that worker tasks are properly stored"""
+        with patch("app.main.settings") as mock_settings, \
+                patch("app.main.QueueWorker") as mock_worker_class, \
+                patch("asyncio.create_task") as mock_create_task:
+            mock_settings.WORKER_CONCURRENCY = 3
+            mock_worker = MagicMock()
+            mock_worker.worker_id = "test-worker"
+            mock_worker_class.return_value = mock_worker
+
+            # Mock tasks
+            mock_tasks = [MagicMock() for _ in range(3)]
+            mock_create_task.side_effect = mock_tasks
+
+            worker_service.start_workers()
+
+            # Verify tasks were stored
+            assert len(worker_service.worker_tasks) == 3
+            assert all(task in worker_service.worker_tasks for task in mock_tasks)
+
+            # Verify add_done_callback was called for cleanup
+            for task in mock_tasks:
+                task.add_done_callback.assert_called_once()
+
+    def test_start_workers_empty_concurrency(self, worker_service):
+        """Test start_workers with zero concurrency"""
+        with patch("app.main.settings") as mock_settings:
+            mock_settings.WORKER_CONCURRENCY = 0
+
+            worker_service.start_workers()
+
+            assert len(worker_service.workers) == 0
+            assert len(worker_service.worker_tasks) == 0
+            assert worker_service.running is True
+
+    def test_start_workers_exception_handling(self, worker_service):
+        """Test start_workers handles QueueWorker creation exceptions"""
+        with patch("app.main.settings") as mock_settings, \
+                patch("app.main.QueueWorker") as mock_worker_class:
+            mock_settings.WORKER_CONCURRENCY = 1
+            mock_worker_class.side_effect = Exception("Worker creation failed")
+
+            with pytest.raises(Exception) as exc_info:
+                worker_service.start_workers()
+
+            assert "Worker creation failed" in str(exc_info.value)
+            assert len(worker_service.workers) == 0
+            assert worker_service.running is False
