@@ -8,7 +8,7 @@ import uvicorn
 import asyncio
 import signal
 import sys
-from typing import List
+from typing import List, Set
 from tortoise import Tortoise
 import logging
 from fastapi import FastAPI
@@ -27,6 +27,7 @@ class WorkerService:
         self.container = Container()
         self.container.config.from_dict(settings.dict())
         self.workers: List[QueueWorker] = []
+        self.worker_tasks: Set[asyncio.Task] = set()
         self.running = False
         self.initialization_complete = False
         self._shutdown_event = asyncio.Event()
@@ -47,6 +48,7 @@ class WorkerService:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, signal_received)
         asyncio.create_task(self.shutdown())
+
 
 
     async def _wait_for_shutdown(self):
@@ -86,7 +88,11 @@ class WorkerService:
                 self.workers.append(worker)
 
                 # Start worker task
-                asyncio.create_task(self._run_worker_with_monitoring(worker))
+                task = asyncio.create_task(self._run_worker_with_monitoring(worker))
+                self.worker_tasks.add(task)
+
+                task.add_done_callback(self.worker_tasks.discard)
+
                 logger.info(f"Started worker {i + 1}/{worker_count}")
 
             self.running = True
@@ -130,6 +136,9 @@ class WorkerService:
 
         # Stop all workers gracefully
         shutdown_tasks = []
+        active_tasks = [task for task in self.worker_tasks if not task.done()]
+        logger.info(f"Cancelling {len(active_tasks)} active worker tasks...")
+
         for worker in self.workers:
             logger.info(f"Stopping worker {worker.worker_id}...")
             shutdown_tasks.append(worker.stop())
@@ -173,10 +182,10 @@ async def lifespan(app: FastAPI):
         # Initialize worker service
         worker_service = WorkerService()
         await worker_service.initialize()
-        await worker_service.start_workers()
+        worker_service.start_workers()
 
         # Setup async signal handlers - this is the key improvement!
-        await worker_service.setup_signal_handlers()
+        worker_service.setup_signal_handlers()
 
         logger.info("Application startup complete")
 
