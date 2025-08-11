@@ -1,5 +1,5 @@
-from pydantic import Field, validator
-from typing import Any, Dict, ClassVar, Optional
+from pydantic import Field
+from typing import Any, Dict, ClassVar, Optional, List
 from enum import Enum
 
 from pydantic_settings import BaseSettings
@@ -25,7 +25,12 @@ class Settings(BaseSettings):
     app_name: str = "DevDox AI Context Queue Worker"
     Environment: str = "development"
     DEBUG: bool = Field(default=False, description="Enable debug mode")
-    version: str = "0.0.1"
+
+    HOST :str = "0.0.0.0"
+    PORT:int = 8004
+
+    VERSION:str = "0.0.1"
+
 
     # Database
     DB_MAX_CONNECTIONS: int = Field(default=20, ge=1, le=100)
@@ -77,6 +82,8 @@ class Settings(BaseSettings):
     JOB_TIMEOUT_MINUTES: int = Field(
         default=30, ge=5, le=120, description="Job processing timeout"
     )
+
+    CORS_ORIGINS: List[str] = ["http://localhost:8002"]
 
     class Config:
         env_file = "app/.env"
