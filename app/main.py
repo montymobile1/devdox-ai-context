@@ -32,22 +32,22 @@ class WorkerService:
         self._shutdown_event = asyncio.Event()
         self._signal_handler_task = None
 
-    async def setup_signal_handlers(self):
-        """Setup async signal handlers - this is the proper way"""
+    def setup_signal_handlers(self):
+
+        """Setup signal handlers and start shutdown monitoring"""
+
         loop = asyncio.get_running_loop()
 
-        # Create async signal handler
         def signal_received():
             logger.info("Signal received, setting shutdown event...")
             self._shutdown_event.set()
 
         # Register signal handlers with the event loop
+
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, signal_received)
+        asyncio.create_task(self.shutdown())
 
-        # Start monitoring for shutdown signals
-        self._signal_handler_task = asyncio.create_task(self._wait_for_shutdown())
-        logger.info("Async signal handlers registered")
 
     async def _wait_for_shutdown(self):
         """Wait for shutdown signal and handle gracefully"""
@@ -75,7 +75,7 @@ class WorkerService:
             logger.error(f"Failed to initialize service: {str(e)}", exc_info=True)
             raise
 
-    async def start_workers(self):
+    def start_workers(self):
         """Start queue worker instances"""
         try:
             worker_count = settings.WORKER_CONCURRENCY
@@ -106,11 +106,15 @@ class WorkerService:
                     await asyncio.sleep(5)
             except asyncio.CancelledError:
                 logger.info(f"Worker {worker.worker_id} cancelled during shutdown")
-                break
+                raise
             except Exception as e:
                 logger.error(f"Worker {worker.worker_id} error: {e}", exc_info=True)
                 if self.running:
-                    await asyncio.sleep(10)
+                    try:
+                        await asyncio.sleep(10)
+                    except asyncio.CancelledError:
+                        logger.info(f"Worker {worker.worker_id} error recovery cancelled")
+                        raise
 
     async def shutdown(self):
         """Graceful shutdown of all workers"""

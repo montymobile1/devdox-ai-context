@@ -19,14 +19,14 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     @patch("app.main.settings")
-    async def test_worker_service_with_zero_workers(self, mock_settings):
+    def test_worker_service_with_zero_workers(self, mock_settings):
         """Test worker service with zero worker concurrency"""
         service = WorkerService()
 
         mock_settings.WORKER_CONCURRENCY = 0
 
         # Should handle zero workers gracefully
-        await  service.start_workers()
+        service.start_workers()
 
         assert len(service.workers) == 0
 

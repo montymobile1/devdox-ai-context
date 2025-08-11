@@ -55,7 +55,7 @@ class TestWorkerService:
     @pytest.mark.asyncio
     @patch("app.main.QueueWorker")
     @patch("asyncio.create_task")
-    async def test_start_workers_success(
+    def test_start_workers_success(
             self, mock_create_task, mock_queue_worker, worker_service
     ):
         """Test successful worker start"""
@@ -71,7 +71,7 @@ class TestWorkerService:
         with patch("app.main.settings") as mock_settings:
             mock_settings.WORKER_CONCURRENCY = 2
 
-            await worker_service.start_workers()
+            worker_service.start_workers()
 
             assert len(worker_service.workers) == 2
 
@@ -101,7 +101,7 @@ class TestWorkerService:
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
 
-            await worker_service.setup_signal_handlers()
+            worker_service.setup_signal_handlers()
             mock_create_task.assert_called_once()
 
     @pytest.mark.asyncio
@@ -177,7 +177,6 @@ class TestLifespanManager:
         mock_tortoise_init.assert_called_once()
         mock_service.initialize.assert_called_once()
         mock_service.start_workers.assert_called_once()
-        # mock_service.setup_signal_handlers.assert_called_once()
         mock_service.shutdown.assert_called_once()
         mock_close_connections.assert_called_once()
 
@@ -206,18 +205,17 @@ class TestLifespanManager:
 class TestSignalHandlers:
     """Test signal handler setup"""
 
-
-
     @pytest.mark.asyncio
-    async def test_signal_handler_execution(self):
+    async def test_signal_handler_execution_async(self):
         """Test signal handler execution triggers shutdown event"""
+        # Create WorkerService inside async context (event loop is running)
         worker_service = WorkerService()
 
         with patch("asyncio.get_running_loop") as mock_get_loop:
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
 
-            await worker_service.setup_signal_handlers()
+            worker_service.setup_signal_handlers()
 
             # Get the signal handler function that was registered
             signal_handler_func = mock_loop.add_signal_handler.call_args_list[0][0][1]
@@ -316,7 +314,7 @@ class TestIntegration:
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
 
-            await worker_service.setup_signal_handlers()
+            worker_service.setup_signal_handlers()
 
             # Verify that signal handlers were set up
             assert mock_loop.add_signal_handler.call_count == 2
