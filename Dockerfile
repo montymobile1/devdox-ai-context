@@ -36,4 +36,4 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Switch to the non-root user (this should be LAST)
 USER appuser
 
-ENTRYPOINT ["python","-m", "app.main"]
+ENTRYPOINT ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
