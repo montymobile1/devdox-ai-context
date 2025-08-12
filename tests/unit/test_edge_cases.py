@@ -17,7 +17,6 @@ import tempfile
 class TestEdgeCases:
     """Test edge cases and boundary conditions"""
 
-    @pytest.mark.asyncio
     @patch("app.main.settings")
     def test_worker_service_with_zero_workers(self, mock_settings):
         """Test worker service with zero worker concurrency"""

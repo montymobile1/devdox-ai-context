@@ -39,7 +39,6 @@ class TestWorkerService:
             mock_wire.assert_called_once()
             assert worker_service.initialization_complete is True
 
-    @pytest.mark.asyncio
     @patch("app.main.QueueWorker")
     @patch("asyncio.create_task")
     def test_start_workers_success(
@@ -77,7 +76,7 @@ class TestWorkerService:
             mock_settings.WORKER_CONCURRENCY = 1
 
             with pytest.raises(Exception) as exc_info:
-                 await worker_service.start_workers()
+                worker_service.start_workers()
             assert "Worker creation failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -264,7 +263,6 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_full_application_lifecycle(self):
         """Test complete application startup and shutdown"""
-        from fastapi.testclient import TestClient
 
         with patch("app.main.TORTOISE_ORM", {}), \
                 patch("app.main.WorkerService") as mock_worker_service_class, \
@@ -309,7 +307,6 @@ class TestIntegration:
 
 class TestErrorHandling:
     """Test error handling scenarios"""
-
 
 
     @pytest.mark.asyncio
