@@ -28,29 +28,16 @@ class TestWorkerService:
         assert hasattr(worker_service, '_signal_handler_task')
 
     @pytest.mark.asyncio
-    @patch("app.main.Tortoise.init")
-    async def test_initialize_success(self, mock_tortoise_init, worker_service):
+    async def test_initialize_success(self, worker_service):
         """Test successful initialization"""
-        mock_tortoise_init.return_value = None
+
 
         with patch.object(worker_service.container, "wire") as mock_wire:
             await worker_service.initialize()
 
-            mock_tortoise_init.assert_called_once()
+
             mock_wire.assert_called_once()
             assert worker_service.initialization_complete is True
-
-    @pytest.mark.asyncio
-    @patch("app.main.Tortoise.init")
-    async def test_initialize_failure(self, mock_tortoise_init, worker_service):
-        """Test initialization failure"""
-        mock_tortoise_init.side_effect = Exception("Database connection failed")
-
-        with pytest.raises(Exception) as exc_info:
-            await worker_service.initialize()
-
-        assert "Database connection failed" in str(exc_info.value)
-        assert worker_service.initialization_complete is False
 
     @pytest.mark.asyncio
     @patch("app.main.QueueWorker")
@@ -118,25 +105,6 @@ class TestWorkerService:
 
         worker_service.shutdown.assert_called_once()
 
-    @pytest.mark.asyncio
-    @patch("app.main.Tortoise.close_connections")
-    async def test_shutdown(self, mock_close_connections, worker_service):
-        """Test graceful shutdown"""
-        # Create mock workers
-        mock_worker1 = MagicMock()
-        mock_worker1.stop = AsyncMock()
-        mock_worker2 = MagicMock()
-        mock_worker2.stop = AsyncMock()
-
-        worker_service.workers = [mock_worker1, mock_worker2]
-        worker_service.running = True
-
-        await worker_service.shutdown()
-
-        mock_worker1.stop.assert_called_once()
-        mock_worker2.stop.assert_called_once()
-        mock_close_connections.assert_called_once()
-        assert worker_service.running is False
 
     @pytest.mark.asyncio
     async def test_shutdown_when_not_running(self, worker_service):

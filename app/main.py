@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 import signal
-import sys
 from typing import List, Set
 from tortoise import Tortoise
 import logging
@@ -25,7 +24,7 @@ class WorkerService:
 
     def __init__(self):
         self.container = Container()
-        self.container.config.from_dict(settings.dict())
+        self.container.config.from_dict(settings.model_dump())
         self.workers: List[QueueWorker] = []
         self.worker_tasks: Set[asyncio.Task] = set()
         self.running = False
@@ -63,9 +62,6 @@ class WorkerService:
     async def initialize(self):
         """Initialize database and dependencies"""
         try:
-            if TORTOISE_ORM:
-                await Tortoise.init(config=TORTOISE_ORM)
-                logger.info("Database connection initialized")
 
             self.container.wire(
                 modules=["app.handlers.message_handler", "app.handlers.queue_worker"]
@@ -153,10 +149,6 @@ class WorkerService:
             except asyncio.TimeoutError:
                 logger.warning("Worker shutdown timeout")
 
-        # Close database connections
-        if TORTOISE_ORM:
-            await Tortoise.close_connections()
-            logger.info("Database connections closed")
 
         logger.info("Shutdown complete")
 
@@ -240,13 +232,15 @@ async def health_check():
         "worker_count": len(worker_service.workers) if worker_service else 0
     }
 
-
-if __name__ == "__main__":
-    # No need for manual signal setup - it's handled in lifespan!
+def main():
     uvicorn.run(
         "app.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=False,
-        log_level="info"
-    )
+        host = settings.HOST,
+        port = settings.PORT,
+        reload = False,
+        log_level = "info"
+           )
+        
+if __name__ == "__main__":
+
+    main()

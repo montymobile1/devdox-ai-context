@@ -22,7 +22,6 @@ dependencies = [
     "tortoise-orm==0.24.0",
     "fastapi==0.115.12",
     "fastapi-cli==0.0.7",
-    "starlette==0.46.2",
     "uvicorn==0.34.2",
     "uvloop==0.21.0",
     "pydantic==2.8.0",

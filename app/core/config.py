@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing import Any, Dict, ClassVar, Optional, List
 from enum import Enum
 
@@ -26,7 +26,10 @@ class Settings(BaseSettings):
     Environment: str = "development"
     DEBUG: bool = Field(default=False, description="Enable debug mode")
 
-    HOST :str = "0.0.0.0"
+    HOST: str = Field(
+        default="127.0.0.1",
+        description="Host to bind to. Use 127.0.0.1 for dev, 0.0.0.0 for production"
+    )
     PORT:int = 8004
 
     VERSION:str = "0.0.1"
@@ -84,6 +87,13 @@ class Settings(BaseSettings):
     )
 
     CORS_ORIGINS: List[str] = ["http://localhost:8002"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
 
     class Config:
         env_file = "app/.env"
