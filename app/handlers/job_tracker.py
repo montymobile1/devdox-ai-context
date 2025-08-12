@@ -212,7 +212,7 @@ class JobTrackerManager:
             # Get the last message attached to this message_id if present
             previous_latest_message = (
                 await QueueProcessingRegistry.filter(message_id=message_id)
-                .order_by("-updated_at")
+                .order_by("-message_id", "-updated_at")
                 .first()
             )
 
