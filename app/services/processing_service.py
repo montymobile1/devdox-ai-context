@@ -12,11 +12,11 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from typing import List, Dict, Any, Tuple, Optional
 from app.infrastructure.database.repositories import (
-    TortoiseContextRepository,
-    TortoiseUserRepository,
-    TortoiseRepoRepository,
-    TortoiseGitLabelRepository,
-    TortoiseCodeChunks,
+    ContextRepositoryHelper,
+    UserRepositoryHelper,
+    RepoRepositoryHelper,
+    GitLabelRepositoryHelper,
+    CodeChunksRepositoryHelper,
 )
 from app.infrastructure.external_apis.git_clients import GitClientFactory
 from app.handlers.utils.repo_fetcher import RepoFetcher
@@ -181,12 +181,12 @@ DEPENDENCY_FILES = {
 class ProcessingService:
     def __init__(
         self,
-        context_repository: TortoiseContextRepository,
-        user_info: TortoiseUserRepository,
-        repo_repository: TortoiseRepoRepository,
-        git_label_repository: TortoiseGitLabelRepository,
+        context_repository: ContextRepositoryHelper,
+        user_info: UserRepositoryHelper,
+        repo_repository: RepoRepositoryHelper,
+        git_label_repository: GitLabelRepositoryHelper,
         encryption_service: FernetEncryptionHelper,
-        code_chunks_repository: TortoiseCodeChunks,
+        code_chunks_repository: CodeChunksRepositoryHelper,
         repo_fetcher_store: RepoFetcher = None
     ):
         self.context_repository = context_repository
@@ -693,7 +693,7 @@ class ProcessingService:
             analysis_content = response.choices[0].message.content
 
             # Update to database
-            await self.context_repository.update_repo(
+            await self.context_repository.update_repo_repo_system_reference(
                 str(id),
                 repo_system_reference=analysis_content,
             )

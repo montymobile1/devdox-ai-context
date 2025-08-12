@@ -1,135 +1,91 @@
-from abc import ABC, abstractmethod
+import logging
 from typing import List, Optional
-from uuid import UUID
-from datetime import datetime, timezone
 
 from app.core.exceptions import exception_constants
-from models import User, Repo, APIKEY, GitLabel, CodeChunks
-from app.core.exceptions.local_exceptions import (
-    RepoNotFoundError,
-    DatabaseError,
-    ContextNotFoundError,
-)
-import logging
+from app.core.exceptions.local_exceptions import (ContextNotFoundError, DatabaseError, RepoNotFoundError)
+from models_src.dto.api_key import APIKeyResponseDTO
+from models_src.dto.code_chunks import CodeChunksRequestDTO, CodeChunksResponseDTO
+from models_src.dto.git_label import GitLabelResponseDTO
+from models_src.dto.repo import RepoResponseDTO
+from models_src.dto.user import UserRequestDTO, UserResponseDTO
+from models_src.models import CodeChunks, Repo, User
+from models_src.repositories.api_key import TortoiseApiKeyStore
+from models_src.repositories.code_chunks import TortoiseICodeChunksStore
+from models_src.repositories.git_label import TortoiseGitLabelStore
+from models_src.repositories.repo import TortoiseRepoStore
+from models_src.repositories.user import TortoiseUserStore
 
 logger = logging.getLogger(__name__)
 
-class BaseRepository[T](ABC):
-    """Base repository with common database operations"""
 
-    @abstractmethod
-    async def find_by_id(self, id: UUID) -> Optional[T]:
-        pass
+class UserRepositoryHelper:
+    
+    def __init__(self, repo=TortoiseUserStore()):
+        self.__repo = repo
 
-    @abstractmethod
-    async def create(self, **kwargs) -> T:
-        pass
-
-    @abstractmethod
-    async def update(self, id: UUID, **kwargs) -> Optional[T]:
-        pass
-
-    @abstractmethod
-    async def delete(self, id: UUID) -> bool:
-        pass
-
-
-class UserRepositoryInterface(ABC):
-    @abstractmethod
-    async def find_by_user_id(self, user_id: str) -> Optional[User]:
-        pass
-
-    @abstractmethod
-    async def update_token_usage(self, user_id: str, tokens_used: int) -> None:
-        pass
-
-    @abstractmethod
-    async def create_user(self, user_data: dict) -> User:
-        pass
-
-
-class TortoiseUserRepository(UserRepositoryInterface):
     async def find_by_user_id(self, user_id: str) -> Optional[User]:
         try:
-            return await User.filter(user_id=user_id).first()
+            return await self.__repo.find_by_user_id(user_id)
         except Exception as e:
             logger.error(f"Error finding user by user_id {user_id}: {str(e)}")
             return None
 
     async def update_token_usage(self, user_id: str, tokens_used: int) -> None:
         try:
-            user = await User.get(user_id=user_id)
-            user.token_used += tokens_used
-            await user.save()
+            
+            total_updated = await self.__repo.increment_token_usage(user_id, tokens_used)
+            
+            if total_updated:
+                raise Exception("Failed to update token usage")
+            
             logger.info(f"Updated token usage for user {user_id}: +{tokens_used}")
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_USER_TOKEN_UPDATE_FAILED,
                                 internal_context={"user_id": user_id}) from e
 
-    async def create_user(self, user_data: dict) -> User:
+    async def create_user(self, user_data: dict) -> UserResponseDTO:
         try:
-            user = await User.create(**user_data)
+            user = await self.__repo.save(UserRequestDTO(**user_data))
             logger.info(f"Created new user: {user.user_id}")
             return user
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_USER_CREATION_FAILED) from e
 
 
-class APIKeyRepositoryInterface(ABC):
-    @abstractmethod
-    async def find_active_by_key(self, api_key: str) -> Optional[APIKEY]:
-        pass
-
-    @abstractmethod
-    async def update_last_used(self, api_key_id: str) -> None:
-        pass
-
-
-class TortoiseAPIKeyRepository(APIKeyRepositoryInterface):
-    async def find_active_by_key(self, api_key: str) -> Optional[APIKEY]:
+class APIKeyRepositoryHelper:
+    
+    def __init__(self, repo=TortoiseApiKeyStore()):
+        self.__repo = repo
+    
+    async def find_active_by_key(self, api_key: str) -> Optional[APIKeyResponseDTO]:
         try:
-            return await APIKEY.filter(api_key=api_key, is_active=True).first()
+            return await self.__repo.find_first_by_api_key_and_is_active(api_key, is_active=True)
         except Exception as e:
             logger.error(f"Error finding API key: {str(e)}")
             return None
 
     async def update_last_used(self, api_key_id: str) -> None:
         try:
-            api_key = await APIKEY.get(id=api_key_id)
-            api_key.last_used_at = datetime.now(timezone.utc)
-            await api_key.save()
+            await self.__repo.update_last_used_by_id(api_key_id)
 
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_API_KEY_UPDATE_FAILED) from e
 
-
-class RepoRepositoryInterface(ABC):
-    @abstractmethod
-    async def find_by_repo_id(self, repo_id: str) -> Optional[Repo]:
-        pass
-
-    @abstractmethod
-    async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[Repo]:
-        pass
-
-    @abstractmethod
-    async def update_processing_status(
-        self, repo_id: str, status: str, **kwargs
-    ) -> None:
-        pass
-
-
-class TortoiseRepoRepository(RepoRepositoryInterface):
-    async def find_by_repo_id(self, repo_id: str) -> Optional[Repo]:
+class RepoRepositoryHelper:
+    
+    def __init__(self, repo=TortoiseRepoStore()):
+        self.__repo = repo
+    
+    async def find_by_repo_id(self, repo_id: str) -> Optional[RepoResponseDTO]:
         try:
-            return await Repo.filter(repo_id=repo_id).first()
+            return await self.__repo.find_by_repo_id(repo_id)
         except Exception as e:
             logger.error(f"Error finding repo by repo_id {repo_id}: {str(e)}")
             return None
 
     async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[Repo]:
         try:
-            return await Repo.filter(user_id=user_id, html_url=html_url).first()
+            return await self.__repo.find_by_user_id_and_html_url(user_id=user_id, html_url=html_url).first()
         except Exception as e:
             logger.error(
                 f"Error finding repo for user {user_id} and URL {html_url}: {str(e)}"
@@ -140,16 +96,14 @@ class TortoiseRepoRepository(RepoRepositoryInterface):
         self, repo_id: str, status: str, **kwargs
     ) -> None:
         try:
-            repo = await Repo.filter(repo_id=repo_id).first()
-            if not repo:
+            repo = await self.__repo.update_status_by_repo_id(
+                repo_id=repo_id,
+                status=status,
+                **kwargs)
+            
+            if repo <=0 or not repo:
                 raise RepoNotFoundError(user_message=exception_constants.REPOSITORY_NOT_FOUND, internal_context={"repo_id": repo_id})
-
-            repo.status = status
-            for key, value in kwargs.items():
-                if hasattr(repo, key):
-                    setattr(repo, key, value)
-
-            await repo.save()
+            
             logger.info(f"Updated repo {repo_id} status to {status}")
         except RepoNotFoundError:
             raise
@@ -157,47 +111,31 @@ class TortoiseRepoRepository(RepoRepositoryInterface):
             logger.error(f"Error updating repo status: {str(e)}")
             raise DatabaseError(user_message=exception_constants.DB_REPO_STATUS_UPDATE_FAILED) from e
 
-
-class GitLabelRepositoryInterface(ABC):
-    @abstractmethod
+class GitLabelRepositoryHelper:
+    
+    def __init__(self, repo=TortoiseGitLabelStore()):
+        self.__repo = repo
+    
+    
     async def find_by_user_and_hosting(
         self, user_id: str, id: str, git_hosting: str
-    ) -> Optional[GitLabel]:
-        pass
-
-
-class TortoiseGitLabelRepository(GitLabelRepositoryInterface):
-    async def find_by_user_and_hosting(
-        self, user_id: str, id: str, git_hosting: str
-    ) -> Optional[GitLabel]:
+    ) -> Optional[GitLabelResponseDTO]:
         try:
-            return await GitLabel.filter(
+            return await self.__repo.find_by_id_and_user_id_and_git_hosting(
                 id=id, user_id=user_id, git_hosting=git_hosting
-            ).first()
+            )
         except Exception as e:
             logger.error(f"Error finding git label: {str(e)}")
             return None
 
 
-class ContextRepositoryInterface(ABC):
-    @abstractmethod
-    async def create_context(self, repo_id: str, user_id: str, config: dict) -> Repo:
-        pass
-
-    @abstractmethod
-    async def update_status(self, context_id: str, status: str, **kwargs) -> None:
-        pass
-
-    @abstractmethod
-    async def update_repo(self, context_id: str,  **kwargs) -> None:
-        pass
-
-class TortoiseContextRepository(ContextRepositoryInterface):
-    async def create_context(self, repo_id: str, user_id: str, config: dict) -> Repo:
+class ContextRepositoryHelper:
+    def __init__(self, repo=TortoiseRepoStore()):
+        self.__repo = repo
+    
+    async def create_context(self, repo_id: str, user_id: str, config: dict) -> RepoResponseDTO:
         try:
-            context = await Repo.create(
-                repo_id=repo_id, user_id=user_id, config=config, status="pending"
-            )
+            context = await self.__repo.save_context(repo_id=repo_id, user_id=user_id, config=config)
             logger.info(f"Created context for repo {repo_id}")
             return context
         except Exception as e:
@@ -205,32 +143,22 @@ class TortoiseContextRepository(ContextRepositoryInterface):
 
     async def update_status(self, context_id: str, status: str, **kwargs) -> None:
         try:
-            context = await Repo.filter(id=context_id).first()
-            if not context:
+            context = await self.__repo.update_status_by_repo_id(id=context_id, status=status, **kwargs)
+            if not context or context<= 0:
                 raise ContextNotFoundError(user_message=exception_constants.CONTEXT_NOT_FOUND, internal_context={"context_id": context_id})
-
-            context.status = status
-            for key, value in kwargs.items():
-                if hasattr(context, key):
-                    setattr(context, key, value)
-            await context.save()
+            
             logger.info(f"Updated context {context_id} status to {status}")
         except ContextNotFoundError:
             raise
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED) from e
 
-    async def update_repo(self, context_id: str,  **kwargs) -> None:
+    async def update_repo_repo_system_reference(self, context_id: str, repo_system_reference:str) -> None:
         try:
-            context = await Repo.filter(id=context_id).first()
-            if not context:
+            context = await self.__repo.update_repo_system_reference_by_id(id=context_id, repo_system_reference=repo_system_reference)
+            if not context or context <= 0:
                 raise ContextNotFoundError(f"Context {context_id} not found")
-
-
-            for key, value in kwargs.items():
-                if hasattr(context, key):
-                    setattr(context, key, value)
-            await context.save()
+            
             logger.info(f"Updated context {context_id} ")
 
         except ContextNotFoundError:
@@ -240,35 +168,29 @@ class TortoiseContextRepository(ContextRepositoryInterface):
             raise DatabaseError(f"Failed to update context: {str(e)}")
 
 
-class ContextCodeChunkInterface(ABC):
-    @abstractmethod
-    async def store_emebeddings(
-        self, repo_id: str, user_id: str, data: dict, commit_number: str
-    ) -> Optional[CodeChunks]:
-        pass
-
-    @abstractmethod
-    async def find_by_repo(self, repo_id: str, limit: int = 100) -> List[CodeChunks]:
-        pass
-
-
-class TortoiseCodeChunks(ContextCodeChunkInterface):
+class CodeChunksRepositoryHelper:
+    
+    def __init__(self, repo=TortoiseICodeChunksStore()):
+        self.__repo = repo
+    
     async def store_emebeddings(
         self, repo_id: str, user_id: str, data: dict, commit_number: str
     ) -> Optional[CodeChunks]:
         try:
             created_chunks = []
             for result in data:
-                chunk = await CodeChunks.create(
-                    repo_id=repo_id,
-                    user_id=user_id,
-                    content=result["content"],
-                    embedding=result["embedding"],
-                    metadata=result["metadata"],
-                    file_name=result["file_name"],
-                    file_path=result["file_path"],
-                    file_size=result["file_size"],
-                    commit_number=commit_number,
+                chunk = await self.__repo.save(
+                    CodeChunksRequestDTO(
+                        repo_id=repo_id,
+                        user_id=user_id,
+                        content=result["content"],
+                        embedding=result["embedding"],
+                        metadata=result["metadata"],
+                        file_name=result["file_name"],
+                        file_path=result["file_path"],
+                        file_size=result["file_size"],
+                        commit_number=commit_number,
+                    )
                 )
                 created_chunks.append(chunk)
 
@@ -277,9 +199,9 @@ class TortoiseCodeChunks(ContextCodeChunkInterface):
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_CODE_CHUNKS_CREATE_FAILED) from e
 
-    async def find_by_repo(self, repo_id: str, limit: int = 100) -> List[CodeChunks]:
+    async def find_by_repo(self, repo_id: str, limit: int = 100) -> List[CodeChunksResponseDTO]:
         try:
-            return await CodeChunks.filter(repo_id=repo_id).limit(limit).all()
+            return await self.__repo.find_all_by_repo_id_with_limit(repo_id=repo_id, limit=limit)
         except Exception as e:
             logger.error(f"Error finding code chunks for repo {repo_id}: {str(e)}")
             return []

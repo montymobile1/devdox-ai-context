@@ -1,12 +1,12 @@
 from dependency_injector import containers, providers
 
 from app.infrastructure.database.repositories import (
-    TortoiseUserRepository,
-    TortoiseRepoRepository,
-    TortoiseContextRepository,
-    TortoiseAPIKeyRepository,
-    TortoiseGitLabelRepository,
-    TortoiseCodeChunks,
+    UserRepositoryHelper,
+    RepoRepositoryHelper,
+    ContextRepositoryHelper,
+    APIKeyRepositoryHelper,
+    GitLabelRepositoryHelper,
+    CodeChunksRepositoryHelper,
 )
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.handlers.message_handler import MessageHandler
@@ -23,12 +23,12 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     # Infrastructure - Database Repositories
-    user_repository = providers.Singleton(TortoiseUserRepository)
-    repo_repository = providers.Singleton(TortoiseRepoRepository)
-    context_repository = providers.Singleton(TortoiseContextRepository)
-    api_key_repository = providers.Singleton(TortoiseAPIKeyRepository)
-    git_label_repository = providers.Singleton(TortoiseGitLabelRepository)
-    code_chunks_repository = providers.Singleton(TortoiseCodeChunks)
+    user_repository = providers.Singleton(UserRepositoryHelper)
+    repo_repository = providers.Singleton(RepoRepositoryHelper)
+    context_repository = providers.Singleton(ContextRepositoryHelper)
+    api_key_repository = providers.Singleton(APIKeyRepositoryHelper)
+    git_label_repository = providers.Singleton(GitLabelRepositoryHelper)
+    code_chunks_repository = providers.Singleton(CodeChunksRepositoryHelper)
 
     # Infrastructure - External Services
     queue_service = providers.Singleton(
