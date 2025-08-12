@@ -33,21 +33,18 @@ class WorkerService:
         self._signal_handler_task = None
 
     def setup_signal_handlers(self):
-
         """Setup signal handlers and start shutdown monitoring"""
-
         loop = asyncio.get_running_loop()
 
         def signal_received():
             logger.info("Signal received, setting shutdown event...")
             self._shutdown_event.set()
+            # Store the task to prevent garbage collection
+            self._shutdown_task = asyncio.create_task(self.shutdown())
 
         # Register signal handlers with the event loop
-
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, signal_received)
-        asyncio.create_task(self.shutdown())
-
 
 
     async def _wait_for_shutdown(self):

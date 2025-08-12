@@ -81,15 +81,28 @@ class TestWorkerService:
             assert "Worker creation failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_setup_signal_handlers(self, worker_service):
-        """Test async signal handler setup"""
-        with patch("asyncio.get_running_loop") as mock_get_loop, \
-                patch("asyncio.create_task") as mock_create_task:
+    async def test_setup_signal_handlers_basic(self, worker_service):
+        """Test basic signal handler setup"""
+        with patch("asyncio.get_running_loop") as mock_get_loop:
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
 
             worker_service.setup_signal_handlers()
-            mock_create_task.assert_called_once()
+
+            # Verify loop was obtained
+            mock_get_loop.assert_called_once()
+
+            # Verify signal handlers were registered for both SIGTERM and SIGINT
+            assert mock_loop.add_signal_handler.call_count == 2
+            expected_calls = [
+                call(signal.SIGTERM, mock_loop.add_signal_handler.call_args_list[0][0][1]),
+                call(signal.SIGINT, mock_loop.add_signal_handler.call_args_list[1][0][1])
+            ]
+            # Check that the signals were registered (order might vary)
+            registered_signals = [call_args[0][0] for call_args in mock_loop.add_signal_handler.call_args_list]
+            assert signal.SIGTERM in registered_signals
+            assert signal.SIGINT in registered_signals
+
 
     @pytest.mark.asyncio
     async def test_wait_for_shutdown(self, worker_service):
@@ -132,8 +145,8 @@ class TestLifespanManager:
         """Test successful lifespan startup"""
         mock_service = MagicMock()
         mock_service.initialize = MagicMock()
-        mock_service.start_workers = AsyncMock()
-        mock_service.setup_signal_handlers = AsyncMock()
+        mock_service.start_workers = MagicMock()
+        mock_service.setup_signal_handlers = MagicMock()
         mock_service.shutdown = AsyncMock()
         mock_worker_service_class.return_value = mock_service
 
@@ -261,8 +274,8 @@ class TestIntegration:
 
             mock_service = MagicMock()
             mock_service.initialize = MagicMock()
-            mock_service.start_workers = AsyncMock()
-            mock_service.setup_signal_handlers = AsyncMock()
+            mock_service.start_workers = MagicMock()
+            mock_service.setup_signal_handlers = MagicMock()
             mock_service.shutdown = AsyncMock()
             mock_service.running = True
             mock_service.workers = []
