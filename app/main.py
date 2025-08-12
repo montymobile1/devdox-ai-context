@@ -59,7 +59,7 @@ class WorkerService:
         except Exception as e:
             logger.error(f"Error in shutdown handler: {e}", exc_info=True)
 
-    async def initialize(self):
+    def initialize(self):
         """Initialize database and dependencies"""
         try:
 
@@ -173,7 +173,7 @@ async def lifespan(app: FastAPI):
 
         # Initialize worker service
         worker_service = WorkerService()
-        await worker_service.initialize()
+        worker_service.initialize()
         worker_service.start_workers()
 
         # Setup async signal handlers - this is the key improvement!

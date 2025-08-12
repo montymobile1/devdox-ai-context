@@ -378,7 +378,7 @@ class TestRaceConditionSimulation:
                     mock_worker_class.side_effect = mock_workers
 
                     # Initialize service
-                    await service.initialize()
+                    service.initialize()
 
                     # Start and shutdown concurrently
                     startup_task = asyncio.create_task(

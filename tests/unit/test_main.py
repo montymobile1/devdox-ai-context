@@ -33,7 +33,7 @@ class TestWorkerService:
 
 
         with patch.object(worker_service.container, "wire") as mock_wire:
-            await worker_service.initialize()
+            worker_service.initialize()
 
 
             mock_wire.assert_called_once()
@@ -131,7 +131,7 @@ class TestLifespanManager:
     ):
         """Test successful lifespan startup"""
         mock_service = MagicMock()
-        mock_service.initialize = AsyncMock()
+        mock_service.initialize = MagicMock()
         mock_service.start_workers = AsyncMock()
         mock_service.setup_signal_handlers = AsyncMock()
         mock_service.shutdown = AsyncMock()
@@ -158,7 +158,7 @@ class TestLifespanManager:
     ):
         """Test lifespan startup failure"""
         mock_service = MagicMock()
-        mock_service.initialize = AsyncMock(side_effect=Exception("Startup failed"))
+        mock_service.initialize = MagicMock(side_effect=Exception("Startup failed"))
         mock_worker_service_class.return_value = mock_service
 
         mock_app = MagicMock()
@@ -260,7 +260,7 @@ class TestIntegration:
             mock_settings.CORS_ORIGINS = ["*"]
 
             mock_service = MagicMock()
-            mock_service.initialize = AsyncMock()
+            mock_service.initialize = MagicMock()
             mock_service.start_workers = AsyncMock()
             mock_service.setup_signal_handlers = AsyncMock()
             mock_service.shutdown = AsyncMock()
@@ -306,7 +306,7 @@ class TestErrorHandling:
 
         with patch.object(worker_service.container, "wire", side_effect=Exception("Wire failed")):
             with pytest.raises(Exception) as exc_info:
-                await worker_service.initialize()
+                worker_service.initialize()
 
             assert "Wire failed" in str(exc_info.value)
             # Remove assertion for non-existent attribute
