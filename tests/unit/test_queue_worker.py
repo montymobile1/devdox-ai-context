@@ -115,7 +115,7 @@ class TestQueueWorker:
     async def test_worker_loop_with_jobs(self, mock_settings, mock_sleep, queue_worker):
         """Test worker loop processing jobs"""
         mock_settings.QUEUE_POLLING_INTERVAL_SECONDS = 1
-        
+
         # Mock jobs
         job1 = {"id": "job-1", "job_type": "analyze", "payload": {"test": "data1"}}
         job2 = {"id": "job-2", "job_type": "process", "payload": {"test": "data2"}}
