@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from dependency_injector.wiring import Provide, inject
@@ -162,7 +163,7 @@ class QueueWorker:
                 if not job.get("pgmq_msg_id"):
                     logging.error("No pgmq_msg_id found in job data")
                 else:
-                    is_perma_failure, _ = await self.queue_service.fail_job(job, e, job_tracker_instance=job_tracker_instance, job_tracer=job_tracer)
+                    is_perma_failure, _ = await self.queue_service.fail_job(job, e, job_tracker_instance=job_tracker_instance, job_tracer=job_tracer, error_trace=traceback.format_exc())
             except Exception as internal_fail_job_exception:
                 log_summary = f"Failed to fail job {job_id}"
                 logging.exception(log_summary)

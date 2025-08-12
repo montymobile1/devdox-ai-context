@@ -343,8 +343,11 @@ class SupabaseQueue:
                 logger.info(f"Job {job_data.get('id')} marked as completed")
                 
                 if job_tracker_instance:
-                    await job_tracker_instance.completed()
-                
+                    try:
+                        await job_tracker_instance.completed()
+                    except Exception:
+                        logger.exception("Job completed, but JobTracker.completed() failed; continuing.")
+                    
                 return True
             else:
                 log_summary = f"Failed to mark job {job_data.get('id')} as completed"
@@ -439,7 +442,10 @@ class SupabaseQueue:
             )
             
             if job_tracker_instance:
-                await job_tracker_instance.retry(message_id=str(reinserted_message_id))
+                try:
+                    await job_tracker_instance.retry(message_id=str(reinserted_message_id))
+                except Exception:
+                    logger.exception("Job re-queued, but JobTracker.retry() failed; continuing.")
             
             return perma_failure, True
         else:
