@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from dependency_injector.wiring import Provide, inject
@@ -137,7 +138,7 @@ class QueueWorker:
             self.stats["jobs_failed"] += 1
 
             # Mark job as failed with error details
-            await self.queue_service.fail_job(job, str(e), job_tracker_instance=job_tracker_instance)
+            await self.queue_service.fail_job(job, str(e), job_tracker_instance=job_tracker_instance, error_trace=traceback.format_exc())
 
         finally:
             self.stats["current_job"] = None
