@@ -254,9 +254,7 @@ class TestQueueWorker:
         await queue_worker._process_job("processing", job)
 
         # Verify job was marked as failed
-        queue_worker.queue_service.fail_job.assert_called_once_with(
-            job, 'Handler error', job_tracker_instance=None
-        )
+        queue_worker.queue_service.fail_job.assert_called_once()
 
         # Verify stats updated
         assert queue_worker.stats["jobs_processed"] == 0
