@@ -53,7 +53,7 @@ class TestSettings:
             assert test_settings.app_name == "DevDox AI Context Queue Worker"
             assert test_settings.Environment == "development"
             assert test_settings.DEBUG is False
-            assert test_settings.version == "0.0.1"
+            assert test_settings.VERSION == "0.0.1"
             assert test_settings.DB_MAX_CONNECTIONS == 20
             assert test_settings.DB_MIN_CONNECTIONS == 5
             assert test_settings.IS_PRODUCTION is False

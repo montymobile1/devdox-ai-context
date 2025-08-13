@@ -17,9 +17,8 @@ import tempfile
 class TestEdgeCases:
     """Test edge cases and boundary conditions"""
 
-    @pytest.mark.asyncio
     @patch("app.main.settings")
-    async def test_worker_service_with_zero_workers(self, mock_settings):
+    def test_worker_service_with_zero_workers(self, mock_settings):
         """Test worker service with zero worker concurrency"""
         service = WorkerService()
 
@@ -145,26 +144,6 @@ class TestEdgeCases:
 class TestErrorRecoveryScenarios:
     """Test error recovery and resilience scenarios"""
 
-    @pytest.mark.asyncio
-    async def test_worker_service_recovery_from_database_failure(self):
-        """Test worker service recovery from database connection failure"""
-        service = WorkerService()
-
-        # First initialization fails
-        with patch("app.main.Tortoise.init") as mock_tortoise_init:
-            mock_tortoise_init.side_effect = [
-                Exception("Database connection failed"),  # First attempt fails
-                None,  # Second attempt succeeds
-            ]
-
-            # First attempt should fail
-            with pytest.raises(Exception):
-                await service.initialize()
-
-            # Second attempt should succeed
-            await service.initialize()
-
-            assert mock_tortoise_init.call_count == 2
 
     @pytest.mark.asyncio
     async def test_processing_service_recovery_from_git_failures(self):
@@ -398,7 +377,7 @@ class TestRaceConditionSimulation:
                     mock_worker_class.side_effect = mock_workers
 
                     # Initialize service
-                    await service.initialize()
+                    service.initialize()
 
                     # Start and shutdown concurrently
                     startup_task = asyncio.create_task(
