@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     GITLAB_TOKEN: Optional[str] = Field(default=None, description="GitLab API token")
 
     # Security
-    SECRET_KEY: str = Field(..., min_length=32, description="Secret key for encryption")
+    SECRET_KEY: str = Field(..., description="Secret key for encryption")
 
     # Storage
     BASE_DIR: ClassVar[str] = "app/repos"
