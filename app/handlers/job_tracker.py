@@ -26,7 +26,10 @@ import logging
 from enum import Enum
 from typing import NamedTuple, Optional
 
-from models.queue_job_claim_registry import QRegistryStat, queue_processing_registry_one_claim_unique, QueueProcessingRegistry
+from models_src.dto.queue_job_claim_registry import QueueProcessingRegistryRequestDTO, \
+    QueueProcessingRegistryResponseDTO
+from models_src.models.queue_job_claim_registry import QRegistryStat, queue_processing_registry_one_claim_unique, QueueProcessingRegistry
+from models_src.repositories.queue_job_claim_registry import TortoiseQueueProcessingRegistryStore
 from tortoise.exceptions import IntegrityError
 
 
@@ -46,6 +49,7 @@ class JobLevels(str, Enum):
 
 
 class JobTracker:
+    
     """
     Represents a claimed job and provides operations to update its state.
 
@@ -55,21 +59,26 @@ class JobTracker:
     Instances are constructed only through `JobTrackerManager.try_claim`.
     """
     def __init__(
-        self, worker_id: str, queue_name: str, tracked_claim:QueueProcessingRegistry, initial_step: Optional[JobLevels] = None
+            self, worker_id: str, queue_name: str,
+            tracked_claim:QueueProcessingRegistryResponseDTO,
+            initial_step: Optional[JobLevels] = None,
+            queue_processing_registry_store=TortoiseQueueProcessingRegistryStore()
     ):
         """
         __tracked_claim: The ORM database Object of the claimed job.
         __worker_id: Name of the processing queue.
         __queue_name: The DB record representing the claimed job.
         __step: Current logical step in the job's lifecycle.
+        __queue_processing_registry_store: Repository for queue job tracker
         """
-        self.__tracked_claim: QueueProcessingRegistry = tracked_claim
+        self.__tracked_claim: QueueProcessingRegistryResponseDTO = tracked_claim
+        self.__queue_processing_registry_store = queue_processing_registry_store
         self.__worker_id = worker_id
         self.__queue_name = queue_name
         self.__step = initial_step
     
     @property
-    def tracked_claim(self) -> QueueProcessingRegistry:
+    def tracked_claim(self) -> QueueProcessingRegistryResponseDTO:
         return self.__tracked_claim
 
     @property
@@ -91,31 +100,21 @@ class JobTracker:
         Args:
             step (JobLevels): The new step to assign.
         """
-        update_fields = []
-        
-        self.__step = step
+        await self.__queue_processing_registry_store.update_step_by_id(
+            id=str(self.tracked_claim.id),
+            step=step.value
+        )
 
-        self.__tracked_claim.step = step.value
-        update_fields.append("step")
-
-        self.__tracked_claim.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        update_fields.append("updated_at")
-
-        await self.__tracked_claim.save(update_fields=update_fields)
 
     async def start(self):
         """
         Marks the job as IN_PROGRESS in both memory and database.
         """
-        update_fields = []
-
-        self.__tracked_claim.status = QRegistryStat.IN_PROGRESS
-        update_fields.append("status")
-
-        self.__tracked_claim.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        update_fields.append("updated_at")
-
-        await self.__tracked_claim.save(update_fields=update_fields)
+        
+        await self.__queue_processing_registry_store.update_status_or_message_id_by_id(
+            id=str(self.tracked_claim.id),
+            status=QRegistryStat.IN_PROGRESS
+        )
 
     async def fail(self, message_id: Optional[str]=None):
         """
@@ -124,19 +123,12 @@ class JobTracker:
         Args:
             message_id (str): The ID of the failed message (if different from the original).
         """
-        update_fields = []
+        await self.__queue_processing_registry_store.update_status_or_message_id_by_id(
+            id=str(self.tracked_claim.id),
+            status=QRegistryStat.FAILED,
+            message_id=message_id
+        )
 
-        self.__tracked_claim.status = QRegistryStat.FAILED
-        update_fields.append("status")
-
-        self.__tracked_claim.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        update_fields.append("updated_at")
-
-        if message_id:
-            self.__tracked_claim.message_id = message_id
-            update_fields.append("message_id")
-
-        await self.__tracked_claim.save(update_fields=update_fields)
 
     async def retry(self, message_id: str):
         """
@@ -145,36 +137,21 @@ class JobTracker:
         Args:
             message_id (str): The ID of the retried message (if different from the original).
         """
-        update_fields = []
-
-        self.__tracked_claim.status = QRegistryStat.RETRY
-        update_fields.append("status")
-
-        self.__tracked_claim.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        update_fields.append("updated_at")
-
-        if message_id:
-            self.__tracked_claim.message_id = message_id
-            update_fields.append("message_id")
-
-        await self.__tracked_claim.save(update_fields=update_fields)
+        await self.__queue_processing_registry_store.update_status_or_message_id_by_id(
+            id=str(self.tracked_claim.id),
+            status=QRegistryStat.RETRY,
+            message_id=message_id
+        )
 
     async def completed(self):
         """
         Marks the job as COMPLETED and sets its step and statues to DONE in databsase.
         """
-        update_fields = []
-
-        self.__tracked_claim.status = QRegistryStat.COMPLETED
-        update_fields.append("status")
-
-        self.__tracked_claim.step = JobLevels.DONE.value
-        update_fields.append("step")
-
-        self.__tracked_claim.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        update_fields.append("updated_at")
-
-        await self.__tracked_claim.save(update_fields=update_fields)
+        await self.__queue_processing_registry_store.update_status_and_step_by_id(
+            id=str(self.tracked_claim.id),
+            status=QRegistryStat.COMPLETED,
+            step=JobLevels.DONE.value
+        )
 
 class ClaimResult(NamedTuple):
     """
@@ -194,8 +171,10 @@ class JobTrackerManager:
     This is the main entry point of the module. It ensures that jobs are only claimed
     when eligible, and enforces single-worker ownership per job.
     """
-    @staticmethod
-    async def try_claim(worker_id:str, message_id:str, queue_name:str) -> ClaimResult:
+    def __init__(self, queue_processing_registry_store=None):
+        self.__queue_processing_registry_store=queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
+    
+    async def try_claim(self, worker_id:str, message_id:str, queue_name:str) -> ClaimResult:
         """
         Attempts to claim a job from the queue.
 
@@ -210,39 +189,29 @@ class JobTrackerManager:
         try:
 
             # Get the last message attached to this message_id if present
-            previous_latest_message = (
-                await QueueProcessingRegistry.filter(message_id=message_id)
-                .order_by("-message_id", "-updated_at")
-                .first()
+            previous_latest_message = await self.__queue_processing_registry_store.find_previous_latest_message_by_message_id(
+                message_id=message_id,
             )
 
-            if not previous_latest_message or (
-                previous_latest_message
-                and previous_latest_message.status
-                in [QRegistryStat.FAILED, QRegistryStat.RETRY]
+            if not previous_latest_message or (previous_latest_message and previous_latest_message.status in [QRegistryStat.FAILED, QRegistryStat.RETRY]
             ):
 
-                additional_kwargs = {}
-
-                if previous_latest_message:
-                    additional_kwargs["previous_message_id"] = (
-                        previous_latest_message.id
-                    )
-
                 initial_step = JobLevels.START
-
-                claim = await QueueProcessingRegistry.create(
-                    message_id=message_id,
-                    queue_name=queue_name,
-                    step=initial_step.value,
-                    status=QRegistryStat.PENDING,
-                    claimed_by=worker_id,
-                    claimed_at=now,
-                    updated_at=now,
-                    **additional_kwargs,
+                
+                claim = await self.__queue_processing_registry_store.save(
+                    QueueProcessingRegistryRequestDTO(
+                        message_id=message_id,
+                        queue_name=queue_name,
+                        step=initial_step.value,
+                        status=QRegistryStat.PENDING,
+                        claimed_by=worker_id,
+                        claimed_at=now,
+                        updated_at=now,
+                        previous_message_id=previous_latest_message.id if previous_latest_message else None
+                    )
                 )
 
-                return ClaimResult(True, JobTracker(worker_id, queue_name, tracked_claim=claim, initial_step=initial_step))
+                return ClaimResult(True, tracker=JobTracker(worker_id, queue_name, tracked_claim=claim, initial_step=initial_step))
             else:
                 # Already Handled or being handled
                 return ClaimResult(False, None)
