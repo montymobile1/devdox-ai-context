@@ -10,7 +10,7 @@ from models_src.dto.repo import RepoResponseDTO
 from models_src.dto.user import UserRequestDTO, UserResponseDTO
 from models_src.models import CodeChunks, Repo, User
 from models_src.repositories.api_key import TortoiseApiKeyStore
-from models_src.repositories.code_chunks import TortoiseICodeChunksStore
+from models_src.repositories.code_chunks import TortoiseCodeChunksStore
 from models_src.repositories.git_label import TortoiseGitLabelStore
 from models_src.repositories.repo import TortoiseRepoStore
 from models_src.repositories.user import TortoiseUserStore
@@ -85,7 +85,7 @@ class RepoRepositoryHelper:
 
     async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[Repo]:
         try:
-            return await self.__repo.find_by_user_id_and_html_url(user_id=user_id, html_url=html_url).first()
+            return await self.__repo.find_by_user_id_and_html_url(user_id=user_id, html_url=html_url)
         except Exception as e:
             logger.error(
                 f"Error finding repo for user {user_id} and URL {html_url}: {str(e)}"
@@ -170,7 +170,7 @@ class ContextRepositoryHelper:
 
 class CodeChunksRepositoryHelper:
     
-    def __init__(self, repo=TortoiseICodeChunksStore()):
+    def __init__(self, repo=TortoiseCodeChunksStore()):
         self.__repo = repo
     
     async def store_emebeddings(
