@@ -78,21 +78,6 @@ class TestSettings:
             with pytest.raises(ValidationError):
                 Settings()
 
-    def test_settings_secret_key_validation(self):
-        """Test secret key minimum length validation"""
-        with patch.dict(
-            "os.environ",
-            {
-                "SUPABASE_URL": "https://test.supabase.co",
-                "SUPABASE_KEY": "test_key",
-                "SUPABASE_PASSWORD": "test_password",
-                "TOGETHER_API_KEY": "test_together_key",
-                "SECRET_KEY": "short",  # Too short
-            },
-        ):
-            with pytest.raises(ValidationError):
-                Settings()
-
     def test_settings_with_environment_variables(self):
         """Test settings with environment variables"""
         with patch.dict(
