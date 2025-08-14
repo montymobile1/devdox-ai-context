@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 class UserRepositoryHelper:
     
-    def __init__(self, repo=TortoiseUserStore()):
-        self.__repo = repo
+    def __init__(self, repo=None):
+        self.__repo = repo if repo else TortoiseUserStore()
 
     async def find_by_user_id(self, user_id: str) -> Optional[User]:
         try:
