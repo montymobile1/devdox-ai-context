@@ -54,8 +54,8 @@ class UserRepositoryHelper:
 
 class APIKeyRepositoryHelper:
     
-    def __init__(self, repo=TortoiseApiKeyStore()):
-        self.__repo = repo
+    def __init__(self, repo=None):
+        self.__repo = repo if repo else TortoiseApiKeyStore()
     
     async def find_active_by_key(self, api_key: str) -> Optional[APIKeyResponseDTO]:
         try:
@@ -73,8 +73,8 @@ class APIKeyRepositoryHelper:
 
 class RepoRepositoryHelper:
     
-    def __init__(self, repo=TortoiseRepoStore()):
-        self.__repo = repo
+    def __init__(self, repo=None):
+        self.__repo = repo if repo else TortoiseRepoStore()
     
     async def find_by_repo_id(self, repo_id: str) -> Optional[RepoResponseDTO]:
         try:
@@ -113,8 +113,8 @@ class RepoRepositoryHelper:
 
 class GitLabelRepositoryHelper:
     
-    def __init__(self, repo=TortoiseGitLabelStore()):
-        self.__repo = repo
+    def __init__(self, repo=None):
+        self.__repo = repo if repo else TortoiseGitLabelStore()
     
     
     async def find_by_user_and_hosting(
@@ -130,8 +130,8 @@ class GitLabelRepositoryHelper:
 
 
 class ContextRepositoryHelper:
-    def __init__(self, repo=TortoiseRepoStore()):
-        self.__repo = repo
+    def __init__(self, repo=None):
+        self.__repo = repo if repo else TortoiseRepoStore()
     
     async def create_context(self, repo_id: str, user_id: str, config: dict) -> RepoResponseDTO:
         try:
@@ -170,8 +170,8 @@ class ContextRepositoryHelper:
 
 class CodeChunksRepositoryHelper:
     
-    def __init__(self, repo=TortoiseCodeChunksStore()):
-        self.__repo = repo
+    def __init__(self, repo=None):
+        self.__repo = repo if repo else TortoiseCodeChunksStore()
     
     async def store_emebeddings(
         self, repo_id: str, user_id: str, data: dict, commit_number: str
