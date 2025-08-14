@@ -4,14 +4,14 @@ from encryption_src.fernet.service import FernetEncryptionHelper
 
 from app.core.exceptions import exception_constants
 from app.core.exceptions.local_exceptions import AuthenticationError, TokenLimitExceededError
-from app.infrastructure.database.repositories import (TortoiseAPIKeyRepository, TortoiseUserRepository)
+from app.infrastructure.database.repositories import (APIKeyRepositoryHelper, UserRepositoryHelper)
 
 
 class AuthService:
 	def __init__(
 			self,
-			user_repository: TortoiseUserRepository,
-			api_key_repository: TortoiseAPIKeyRepository,
+			user_repository: UserRepositoryHelper,
+			api_key_repository: APIKeyRepositoryHelper,
 			encryption_service: FernetEncryptionHelper,
 	):
 		self.user_repository = user_repository
