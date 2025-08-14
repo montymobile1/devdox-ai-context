@@ -35,7 +35,7 @@ class UserRepositoryHelper:
             
             total_updated = await self.__repo.increment_token_usage(user_id, tokens_used)
             
-            if total_updated:
+            if not total_updated or total_updated <= 0:
                 raise Exception("Failed to update token usage")
             
             logger.info(f"Updated token usage for user {user_id}: +{tokens_used}")
