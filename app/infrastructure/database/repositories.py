@@ -101,7 +101,7 @@ class RepoRepositoryHelper:
                 status=status,
                 **kwargs)
             
-            if repo <=0 or not repo:
+            if not repo or repo <=0:
                 raise RepoNotFoundError(user_message=exception_constants.REPOSITORY_NOT_FOUND, internal_context={"repo_id": repo_id})
             
             logger.info(f"Updated repo {repo_id} status to {status}")
