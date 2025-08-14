@@ -143,7 +143,7 @@ class ContextRepositoryHelper:
 
     async def update_status(self, context_id: str, status: str, **kwargs) -> None:
         try:
-            context = await self.__repo.update_status_by_repo_id(id=context_id, status=status, **kwargs)
+            context = await self.__repo.update_status_by_repo_id(repo_id=context_id, status=status, **kwargs)
             if not context or context<= 0:
                 raise ContextNotFoundError(user_message=exception_constants.CONTEXT_NOT_FOUND, internal_context={"context_id": context_id})
             
