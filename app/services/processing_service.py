@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from app.infrastructure.database.repositories import (
     ContextRepositoryHelper,
     UserRepositoryHelper,
@@ -23,6 +23,7 @@ from app.handlers.utils.repo_fetcher import RepoFetcher
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
+from app.handlers.job_tracker import JobLevels, JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -340,7 +341,7 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(self, job_payload: Dict[str, Any]) -> ProcessingResult:
+    async def process_repository(self, job_payload: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
@@ -372,6 +373,10 @@ class ProcessingService:
             files = self.clone_and_process_repository(
                 repo.html_url, relative_path, job_payload.get("branch", "production")
             )
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.FILE_CLONED)
+            
             repo_local = Repo(relative_path)
             commit_hash = repo_local.head.commit.hexsha
             if repo.last_commit == commit_hash and repo.status == "failed":
@@ -391,7 +396,10 @@ class ProcessingService:
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
-
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.GENERATE_EMBEDS)
+            
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
                 repo_id=repo.id,
@@ -399,7 +407,10 @@ class ProcessingService:
                 data=embeddings,
                 commit_number=commit_hash,
             )
-
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.STORE_EMBEDS)
+            
             # Update context completion
             end_time = datetime.now(timezone.utc)
             processing_time = (end_time - start_time).total_seconds()
