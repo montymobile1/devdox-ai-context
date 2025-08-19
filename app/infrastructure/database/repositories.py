@@ -25,8 +25,8 @@ class UserRepositoryHelper:
     async def find_by_user_id(self, user_id: str) -> Optional[UserResponseDTO]:
         try:
             return await self.__repo.find_by_user_id(user_id)
-        except Exception as e:
-            logger.error(f"Error finding user by user_id {user_id}: {str(e)}")
+        except Exception:
+            logger.exception(exception_constants.ERROR_USER_NOT_FOUND_BY_ID.format(user_id=user_id))
             return None
 
     async def update_token_usage(self, user_id: str, tokens_used: int) -> None:
@@ -35,7 +35,7 @@ class UserRepositoryHelper:
             total_updated = await self.__repo.increment_token_usage(user_id, tokens_used)
             
             if not total_updated or total_updated <= 0:
-                raise Exception("Failed to update token usage")
+                raise Exception(exception_constants.ERROR_USER_TOKEN_USAGE_UPDATE)
             
             logger.info(f"Updated token usage for user {user_id}: +{tokens_used}")
         except Exception as e:
@@ -59,8 +59,8 @@ class APIKeyRepositoryHelper:
     async def find_active_by_key(self, api_key: str) -> Optional[APIKeyResponseDTO]:
         try:
             return await self.__repo.find_first_by_api_key_and_is_active(api_key, is_active=True)
-        except Exception as e:
-            logger.error(f"Error finding API key: {str(e)}")
+        except Exception:
+            logger.exception(exception_constants.ERROR_FINDING_API_KEY)
             return None
 
     async def update_last_used(self, api_key_id: str) -> None:
@@ -78,17 +78,15 @@ class RepoRepositoryHelper:
     async def find_by_repo_id(self, repo_id: str) -> Optional[RepoResponseDTO]:
         try:
             return await self.__repo.find_by_repo_id(repo_id)
-        except Exception as e:
-            logger.error(f"Error finding repo by repo_id {repo_id}: {str(e)}")
+        except Exception:
+            logger.exception(exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(repo_id=repo_id))
             return None
 
     async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[RepoResponseDTO]:
         try:
             return await self.__repo.find_by_user_id_and_html_url(user_id=user_id, html_url=html_url)
-        except Exception as e:
-            logger.error(
-                f"Error finding repo for user {user_id} and URL {html_url}: {str(e)}"
-            )
+        except Exception:
+            logger.exception(exception_constants.ERROR_FINDING_REPO.format(user_id=user_id, html_url=html_url))
             return None
 
     async def update_processing_status(
@@ -123,8 +121,8 @@ class GitLabelRepositoryHelper:
             return await self.__repo.find_by_id_and_user_id_and_git_hosting(
                 id=id, user_id=user_id, git_hosting=git_hosting
             )
-        except Exception as e:
-            logger.error(f"Error finding git label: {str(e)}")
+        except Exception:
+            logger.exception(exception_constants.ERROR_FINDING_GIT_LABEL)
             return None
 
 

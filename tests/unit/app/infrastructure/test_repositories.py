@@ -1,0 +1,237 @@
+import logging
+import uuid
+
+import pytest
+from models_src.test_doubles.repositories.git_label import StubGitLabelStore
+
+from app.core.exceptions.local_exceptions import RepoNotFoundError
+from models_src.dto.api_key import APIKeyResponseDTO
+from models_src.test_doubles.repositories.api_key import FakeApiKeyStore
+from models_src.test_doubles.repositories.repo import FakeRepoStore, StubRepoStore
+
+from app.core.exceptions import exception_constants
+
+from app.infrastructure.database.repositories import APIKeyRepositoryHelper, GitLabelRepositoryHelper, \
+	RepoRepositoryHelper, UserRepositoryHelper
+from models_src.dto.user import UserResponseDTO
+from models_src.test_doubles.repositories.user import FakeUserStore, StubUserStore
+
+from core.config import GitHosting
+
+
+@pytest.mark.asyncio
+class TestUserRepositoryHelper:
+	
+	async def test_find_by_user_id_returns_value(self) -> None:
+		
+		user_repository = FakeUserStore()
+		
+		user_id_2 = uuid.uuid4()
+		
+		user_repository.set_fake_data([
+			UserResponseDTO(user_id=str(uuid.uuid4())),
+			UserResponseDTO(user_id=str(user_id_2)),
+			UserResponseDTO(user_id=str(uuid.uuid4()))
+		])
+		
+		helper = UserRepositoryHelper(repo=user_repository)
+		
+		returned_value = await helper.find_by_user_id(user_id=str(user_id_2))
+		
+		assert returned_value
+	
+	async def test_find_by_user_id_returns_nothing(self) -> None:
+		"""
+		Tests method where it cant find a valid value
+		"""
+		user_repository = FakeUserStore()
+		
+		user_repository.set_fake_data([
+			UserResponseDTO(user_id=str(uuid.uuid4())),
+			UserResponseDTO(user_id=str(uuid.uuid4()))
+		])
+		
+		helper = UserRepositoryHelper(repo=user_repository)
+		
+		returned_value = await helper.find_by_user_id(user_id=str(uuid.uuid4()))
+		
+		assert not returned_value
+	
+	async def test_find_by_user_id_returns_exception(self, caplog) -> None:
+		"""
+		Tests method where it returns an exception
+		"""
+		user_repository = FakeUserStore()
+		
+		user_repository.set_exception(user_repository.find_by_user_id, Exception("Exception Occurred :)"))
+		
+		helper = UserRepositoryHelper(repo=user_repository)
+		
+		user_id = uuid.uuid4()
+		
+		with caplog.at_level(logging.INFO):
+			returned_value = await helper.find_by_user_id(user_id=str(user_id))
+		
+		
+		log_record = caplog.records[0]
+
+		assert not returned_value
+		assert log_record.message == exception_constants.ERROR_USER_NOT_FOUND_BY_ID.format(user_id=str(user_id))
+	
+	@pytest.mark.parametrize(
+		"db_output", [-1, 0], ids=["invalid inputs", "no data"]
+	)
+	async def test_update_token_usage_updates_nothing(self, db_output) -> None:
+		user_repository = StubUserStore()
+		
+		user_repository.set_output(user_repository.increment_token_usage, db_output)
+		
+		helper = UserRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(Exception) as exc_info:
+			_ = await helper.update_token_usage(user_id=str(uuid.uuid4()), tokens_used=1)
+		
+		assert exc_info.value.user_message == exception_constants.DB_USER_TOKEN_UPDATE_FAILED
+	
+
+	async def test_create_user_has_exception(self) -> None:
+		user_repository = StubUserStore()
+		
+		user_repository.set_exception(user_repository.increment_token_usage, Exception("EXCEPTION OCCURRED"))
+		
+		helper = UserRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(Exception) as exc_info:
+			_ = await helper.create_user(user_data={})
+		
+		assert exc_info.value.user_message == exception_constants.DB_USER_CREATION_FAILED
+
+@pytest.mark.asyncio
+class TestAPIKeyRepositoryHelper:
+	
+	async def test_find_active_by_key_has_exception(self, caplog) -> None:
+		
+		repository = FakeApiKeyStore()
+		
+		repository.set_exception(repository.find_first_by_api_key_and_is_active, Exception("EXCEPTION OCCURRED"))
+		
+		helper = APIKeyRepositoryHelper(repo=repository)
+		
+		with caplog.at_level(logging.INFO):
+			returned_value = await helper.find_active_by_key(api_key=str(uuid.uuid4()))
+		
+		
+		log_record = caplog.records[0]
+		
+		assert not returned_value
+		assert log_record.message == exception_constants.ERROR_FINDING_API_KEY
+	
+	async def test_update_last_used_has_exception(self) -> None:
+		
+		repository = FakeApiKeyStore()
+		
+		repository.set_exception(repository.update_last_used_by_id, Exception("EXCEPTION OCCURRED"))
+		
+		helper = APIKeyRepositoryHelper(repo=repository)
+		
+		with pytest.raises(Exception) as exc_info:
+			await helper.update_last_used(api_key_id=str(uuid.uuid4()))
+		
+		assert exc_info.value.user_message == exception_constants.DB_API_KEY_UPDATE_FAILED
+
+@pytest.mark.asyncio
+class TestRepoRepositoryHelper:
+	
+	async def test_find_by_repo_id_has_exception(self, caplog) -> None:
+		
+		repository = FakeRepoStore()
+		
+		repository.set_exception(repository.find_by_repo_id, Exception("EXCEPTION OCCURRED"))
+		
+		helper = RepoRepositoryHelper(repo=repository)
+		
+		repo_id = str(uuid.uuid4())
+		
+		with caplog.at_level(logging.INFO):
+			returned_value = await helper.find_by_repo_id(repo_id=repo_id)
+		
+		
+		log_record = caplog.records[0]
+		
+		assert not returned_value
+		assert log_record.message == exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(repo_id=repo_id)
+	
+	async def test_find_by_user_and_url_has_exception(self, caplog) -> None:
+		
+		repository = FakeRepoStore()
+		
+		repository.set_exception(repository.find_by_user_id_and_html_url, Exception("EXCEPTION OCCURRED"))
+		
+		helper = RepoRepositoryHelper(repo=repository)
+		
+		user_id = str(uuid.uuid4())
+		html_url = "some html url"
+		
+		
+		
+		with caplog.at_level(logging.INFO):
+			returned_value = await helper.find_by_user_and_url(user_id=user_id, html_url=html_url)
+		
+		
+		log_record = caplog.records[0]
+		
+		assert not returned_value
+		assert log_record.message == exception_constants.ERROR_FINDING_REPO.format(user_id=user_id, html_url=html_url)
+	
+	@pytest.mark.parametrize(
+		"db_output", [-1, 0], ids=["invalid inputs", "no data"]
+	)
+	async def test_update_processing_status_has_exception_1(self, db_output) -> None:
+		"""Returns RepoNotFoundError"""
+		
+		user_repository = StubRepoStore()
+		
+		user_repository.set_output(user_repository.update_status_by_repo_id, db_output)
+		
+		helper = RepoRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(RepoNotFoundError) as exc_info:
+			_ = await helper.update_processing_status(repo_id=str(uuid.uuid4()), status="some status")
+		
+		assert exc_info.value.user_message == exception_constants.REPOSITORY_NOT_FOUND
+	
+	async def test_update_processing_status_has_exception_2(self) -> None:
+		"""Returns RepoNotFoundError"""
+		
+		user_repository = StubRepoStore()
+		
+		user_repository.set_exception(user_repository.update_status_by_repo_id, Exception("EXCEPTION OCCURRED"))
+		
+		helper = RepoRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(Exception) as exc_info:
+			_ = await helper.update_processing_status(repo_id=str(uuid.uuid4()), status="some status")
+		
+		assert exc_info.value.user_message == exception_constants.DB_REPO_STATUS_UPDATE_FAILED
+		
+@pytest.mark.asyncio
+class TestGitLabelRepositoryHelper:
+	
+	async def test_find_by_user_and_hosting_has_exception(self, caplog) -> None:
+		"""
+		Tests method where it returns an exception
+		"""
+		repository = StubGitLabelStore()
+		
+		repository.set_exception(repository.find_by_id_and_user_id_and_git_hosting, Exception("Exception Occurred :)"))
+		
+		helper = GitLabelRepositoryHelper(repo=repository)
+		
+		with caplog.at_level(logging.INFO):
+			returned_value = await helper.find_by_user_and_hosting(user_id="u1", id=str(uuid.uuid4()), git_hosting=GitHosting.GITHUB.value)
+		
+		
+		log_record = caplog.records[0]
+		
+		assert not returned_value
+		assert log_record.message == exception_constants.ERROR_FINDING_GIT_LABEL
