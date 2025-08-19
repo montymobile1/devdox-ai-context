@@ -105,7 +105,7 @@ class RepoRepositoryHelper:
         except RepoNotFoundError:
             raise
         except Exception as e:
-            logger.error(f"Error updating repo status: {str(e)}")
+            logger.exception("Error updating repo status")
             raise DatabaseError(user_message=exception_constants.DB_REPO_STATUS_UPDATE_FAILED) from e
 
 class GitLabelRepositoryHelper:

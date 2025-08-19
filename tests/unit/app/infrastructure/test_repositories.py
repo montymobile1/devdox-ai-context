@@ -17,7 +17,7 @@ from app.infrastructure.database.repositories import APIKeyRepositoryHelper, Con
 from models_src.dto.user import UserResponseDTO
 from models_src.test_doubles.repositories.user import FakeUserStore, StubUserStore
 
-from core.config import GitHosting
+from app.core.config import GitHosting
 
 
 @pytest.mark.asyncio
