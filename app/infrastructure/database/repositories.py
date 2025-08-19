@@ -8,7 +8,6 @@ from models_src.dto.code_chunks import CodeChunksRequestDTO, CodeChunksResponseD
 from models_src.dto.git_label import GitLabelResponseDTO
 from models_src.dto.repo import RepoResponseDTO
 from models_src.dto.user import UserRequestDTO, UserResponseDTO
-from models_src.models import CodeChunks, Repo, User
 from models_src.repositories.api_key import TortoiseApiKeyStore
 from models_src.repositories.code_chunks import TortoiseCodeChunksStore
 from models_src.repositories.git_label import TortoiseGitLabelStore
@@ -23,7 +22,7 @@ class UserRepositoryHelper:
     def __init__(self, repo=None):
         self.__repo = repo if repo else TortoiseUserStore()
 
-    async def find_by_user_id(self, user_id: str) -> Optional[User]:
+    async def find_by_user_id(self, user_id: str) -> Optional[UserResponseDTO]:
         try:
             return await self.__repo.find_by_user_id(user_id)
         except Exception as e:
@@ -83,7 +82,7 @@ class RepoRepositoryHelper:
             logger.error(f"Error finding repo by repo_id {repo_id}: {str(e)}")
             return None
 
-    async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[Repo]:
+    async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[RepoResponseDTO]:
         try:
             return await self.__repo.find_by_user_id_and_html_url(user_id=user_id, html_url=html_url)
         except Exception as e:
@@ -175,7 +174,7 @@ class CodeChunksRepositoryHelper:
     
     async def store_emebeddings(
         self, repo_id: str, user_id: str, data: dict, commit_number: str
-    ) -> Optional[CodeChunks]:
+    ) -> Optional[CodeChunksResponseDTO]:
         try:
             created_chunks = []
             for result in data:
