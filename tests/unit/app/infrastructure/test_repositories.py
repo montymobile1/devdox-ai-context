@@ -4,14 +4,15 @@ import uuid
 import pytest
 from models_src.test_doubles.repositories.git_label import StubGitLabelStore
 
-from app.core.exceptions.local_exceptions import RepoNotFoundError
+from app.core.exceptions.local_exceptions import ContextNotFoundError, RepoNotFoundError
 from models_src.dto.api_key import APIKeyResponseDTO
 from models_src.test_doubles.repositories.api_key import FakeApiKeyStore
 from models_src.test_doubles.repositories.repo import FakeRepoStore, StubRepoStore
 
 from app.core.exceptions import exception_constants
 
-from app.infrastructure.database.repositories import APIKeyRepositoryHelper, GitLabelRepositoryHelper, \
+from app.infrastructure.database.repositories import APIKeyRepositoryHelper, ContextRepositoryHelper, \
+	GitLabelRepositoryHelper, \
 	RepoRepositoryHelper, UserRepositoryHelper
 from models_src.dto.user import UserResponseDTO
 from models_src.test_doubles.repositories.user import FakeUserStore, StubUserStore
@@ -235,3 +236,86 @@ class TestGitLabelRepositoryHelper:
 		
 		assert not returned_value
 		assert log_record.message == exception_constants.ERROR_FINDING_GIT_LABEL
+
+@pytest.mark.asyncio
+class TestContextRepositoryHelper:
+	
+	async def test_create_context_has_exception(self):
+		"""
+		Tests method where it returns an exception
+		"""
+		repository = StubRepoStore()
+		
+		repository.set_exception(repository.save_context, Exception("Exception Occurred :)"))
+		
+		helper = ContextRepositoryHelper(repo=repository)
+		
+		with pytest.raises(Exception) as exc_info:
+			_ = await helper.create_context(
+				repo_id=str(uuid.uuid4()), user_id=str(uuid.uuid4()), config={}
+			)
+			
+		assert exc_info.value.user_message == exception_constants.DB_CONTEXT_REPO_CREATE_FAILED
+	
+	@pytest.mark.parametrize(
+		"db_output", [-1, 0], ids=["invalid inputs", "no data"]
+	)
+	async def test_update_status_has_exception_1(self, db_output) -> None:
+		"""Returns RepoNotFoundError"""
+		
+		user_repository = StubRepoStore()
+		
+		user_repository.set_output(user_repository.update_status_by_repo_id, db_output)
+		
+		helper = ContextRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(ContextNotFoundError) as exc_info:
+			_ = await helper.update_status(context_id=str(uuid.uuid4()), status="some status")
+
+		assert exc_info.value.user_message == exception_constants.CONTEXT_NOT_FOUND
+	
+	async def test_update_status_has_exception_2(self) -> None:
+		"""Returns RepoNotFoundError"""
+		
+		user_repository = StubRepoStore()
+		
+		user_repository.set_exception(user_repository.update_status_by_repo_id, Exception("EXCEPTION OCCURRED"))
+		
+		helper = ContextRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(Exception) as exc_info:
+			_ = await helper.update_status(context_id=str(uuid.uuid4()), status="some status")
+		
+		assert exc_info.value.user_message == exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED
+	
+	@pytest.mark.parametrize(
+		"db_output", [-1, 0], ids=["invalid inputs", "no data"]
+	)
+	async def test_update_repo_repo_system_reference_has_exception_1(self, db_output) -> None:
+		"""Returns RepoNotFoundError"""
+		
+		user_repository = StubRepoStore()
+		
+		user_repository.set_output(user_repository.update_repo_system_reference_by_id, db_output)
+		
+		helper = ContextRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(ContextNotFoundError) as exc_info:
+			_ = await helper.update_repo_repo_system_reference(context_id=str(uuid.uuid4()), repo_system_reference="some repo_system_reference")
+		
+		assert exc_info.value.user_message == exception_constants.CONTEXT_NOT_FOUND
+	
+	async def test_update_repo_repo_system_reference_has_exception_2(self) -> None:
+		"""Returns RepoNotFoundError"""
+		
+		user_repository = StubRepoStore()
+		
+		user_repository.set_exception(user_repository.update_repo_system_reference_by_id, Exception("EXCEPTION OCCURRED"))
+		
+		helper = ContextRepositoryHelper(repo=user_repository)
+		
+		with pytest.raises(Exception) as exc_info:
+			_ = await helper.update_repo_repo_system_reference(context_id=str(uuid.uuid4()), repo_system_reference="some repo_system_reference")
+		
+		assert exc_info.value.user_message == exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED
+	

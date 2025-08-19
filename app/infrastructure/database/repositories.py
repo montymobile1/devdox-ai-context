@@ -154,7 +154,7 @@ class ContextRepositoryHelper:
         try:
             context = await self.__repo.update_repo_system_reference_by_id(id=context_id, repo_system_reference=repo_system_reference)
             if not context or context <= 0:
-                raise ContextNotFoundError(f"Context {context_id} not found")
+                raise ContextNotFoundError(user_message=exception_constants.CONTEXT_NOT_FOUND, internal_context={"context_id": context_id})
             
             logger.info(f"Updated context {context_id} ")
 
@@ -162,7 +162,7 @@ class ContextRepositoryHelper:
             raise
         except Exception as e:
             logger.error(f"Error updating context status: {str(e)}")
-            raise DatabaseError(f"Failed to update context: {str(e)}")
+            raise DatabaseError(user_message=exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED) from e
 
 
 class CodeChunksRepositoryHelper:
