@@ -171,7 +171,7 @@ class CodeChunksRepositoryHelper:
         self.__repo = repo if repo else TortoiseCodeChunksStore()
     
     async def store_emebeddings(
-        self, repo_id: str, user_id: str, data: dict, commit_number: str
+        self, repo_id: str, user_id: str, data: List[dict], commit_number: str
     ) -> Optional[CodeChunksResponseDTO]:
         try:
             created_chunks = []
@@ -180,12 +180,12 @@ class CodeChunksRepositoryHelper:
                     CodeChunksRequestDTO(
                         repo_id=repo_id,
                         user_id=user_id,
-                        content=result["content"],
-                        embedding=result["embedding"],
-                        metadata=result["metadata"],
-                        file_name=result["file_name"],
-                        file_path=result["file_path"],
-                        file_size=result["file_size"],
+                        content=result.get("content"),
+                        embedding=result.get("embedding"),
+                        metadata=result.get("metadata"),
+                        file_name=result.get("file_name"),
+                        file_path=result.get("file_path"),
+                        file_size=result.get("file_size"),
                         commit_number=commit_number,
                     )
                 )

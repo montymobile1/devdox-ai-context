@@ -394,7 +394,7 @@ class ProcessingService:
 
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
-                repo_id=repo.id,
+                repo_id=str(repo.id),
                 user_id=repo.user_id,
                 data=embeddings,
                 commit_number=commit_hash,
