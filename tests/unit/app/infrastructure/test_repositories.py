@@ -6,7 +6,6 @@ from _pytest.logging import LogCaptureFixture
 from models_src.test_doubles.repositories.git_label import StubGitLabelStore
 
 from app.core.exceptions.local_exceptions import ContextNotFoundError, RepoNotFoundError
-from models_src.dto.api_key import APIKeyResponseDTO
 from models_src.test_doubles.repositories.api_key import FakeApiKeyStore
 from models_src.test_doubles.repositories.repo import FakeRepoStore, StubRepoStore
 
