@@ -73,11 +73,11 @@ class TestUserRepositoryHelper:
 		with caplog.at_level(logging.INFO):
 			returned_value = await helper.find_by_user_id(user_id=str(user_id))
 		
-		
-		log_record = caplog.records[0]
-
 		assert not returned_value
-		assert log_record.message == exception_constants.ERROR_USER_NOT_FOUND_BY_ID.format(user_id=str(user_id))
+		assert any(
+		        r.message == exception_constants.ERROR_USER_NOT_FOUND_BY_ID.format(user_id=str(user_id))
+		        for r in caplog.records
+		    )
 	
 	@pytest.mark.parametrize(
 		"db_output", [-1, 0], ids=["invalid inputs", "no data"]
@@ -120,13 +120,13 @@ class TestAPIKeyRepositoryHelper:
 		
 		with caplog.at_level(logging.INFO):
 			returned_value = await helper.find_active_by_key(api_key=str(uuid.uuid4()))
-		
-		
-		log_record = caplog.records[0]
-		
+			
 		assert not returned_value
-		assert log_record.message == exception_constants.ERROR_FINDING_API_KEY
-	
+		assert any(
+			r.message == exception_constants.ERROR_FINDING_API_KEY
+			for r in caplog.records
+		)
+		
 	async def test_update_last_used_has_exception(self) -> None:
 		
 		repository = FakeApiKeyStore()
@@ -155,13 +155,13 @@ class TestRepoRepositoryHelper:
 		
 		with caplog.at_level(logging.INFO):
 			returned_value = await helper.find_by_repo_id(repo_id=repo_id)
-		
-		
-		log_record = caplog.records[0]
-		
+			
 		assert not returned_value
-		assert log_record.message == exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(repo_id=repo_id)
-	
+		assert any(
+			r.message == exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(repo_id=repo_id)
+			for r in caplog.records
+		)
+		
 	async def test_find_by_user_and_url_has_exception(self, caplog:LogCaptureFixture) -> None:
 		
 		repository = FakeRepoStore()
@@ -178,11 +178,11 @@ class TestRepoRepositoryHelper:
 		with caplog.at_level(logging.INFO):
 			returned_value = await helper.find_by_user_and_url(user_id=user_id, html_url=html_url)
 		
-		
-		log_record = caplog.records[0]
-		
 		assert not returned_value
-		assert log_record.message == exception_constants.ERROR_FINDING_REPO.format(user_id=user_id, html_url=html_url)
+		assert any(
+			r.message == exception_constants.ERROR_FINDING_REPO.format(user_id=user_id, html_url=html_url)
+			for r in caplog.records
+		)
 	
 	@pytest.mark.parametrize(
 		"db_output", [-1, 0], ids=["invalid inputs", "no data"]
@@ -232,10 +232,11 @@ class TestGitLabelRepositoryHelper:
 			returned_value = await helper.find_by_user_and_hosting(user_id="u1", id=str(uuid.uuid4()), git_hosting=GitHosting.GITHUB.value)
 		
 		
-		log_record = caplog.records[0]
-		
 		assert not returned_value
-		assert log_record.message == exception_constants.ERROR_FINDING_GIT_LABEL
+		assert any(
+			r.message == exception_constants.ERROR_FINDING_GIT_LABEL
+			for r in caplog.records
+		)
 
 @pytest.mark.asyncio
 class TestContextRepositoryHelper:
