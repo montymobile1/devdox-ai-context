@@ -58,7 +58,7 @@ class APIKeyRepositoryHelper:
     
     async def find_active_by_key(self, api_key: str) -> Optional[APIKeyResponseDTO]:
         try:
-            return await self._repo.find_first_by_api_key_and_is_active(api_key, is_active=True)
+            return await self._repo.find_by_active_api_key(api_key, is_active=True)
         except Exception:
             logger.exception(exception_constants.ERROR_FINDING_API_KEY)
             return None

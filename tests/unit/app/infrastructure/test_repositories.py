@@ -115,7 +115,7 @@ class TestAPIKeyRepositoryHelper:
 		
 		repository = FakeApiKeyStore()
 		
-		repository.set_exception(repository.find_first_by_api_key_and_is_active, Exception("EXCEPTION OCCURRED"))
+		repository.set_exception(repository.find_by_active_api_key, Exception("EXCEPTION OCCURRED"))
 		
 		helper = APIKeyRepositoryHelper(repo=repository)
 		
