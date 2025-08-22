@@ -150,7 +150,7 @@ class ContextRepositoryHelper:
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED) from e
 
-    async def update_repo_repo_system_reference(self, context_id: str, repo_system_reference:str) -> None:
+    async def update_repo_system_reference(self, context_id: str, repo_system_reference:str) -> None:
         try:
             context = await self.__repo.update_repo_system_reference_by_id(id=context_id, repo_system_reference=repo_system_reference)
             if not context or context <= 0:

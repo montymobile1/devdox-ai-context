@@ -693,7 +693,7 @@ class ProcessingService:
             analysis_content = response.choices[0].message.content
 
             # Update to database
-            await self.context_repository.update_repo_repo_system_reference(
+            await self.context_repository.update_repo_system_reference(
                 str(id),
                 repo_system_reference=analysis_content,
             )

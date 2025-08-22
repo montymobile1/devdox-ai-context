@@ -2,6 +2,7 @@ import logging
 import uuid
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 from models_src.test_doubles.repositories.git_label import StubGitLabelStore
 
 from app.core.exceptions.local_exceptions import ContextNotFoundError, RepoNotFoundError
@@ -58,7 +59,7 @@ class TestUserRepositoryHelper:
 		
 		assert not returned_value
 	
-	async def test_find_by_user_id_returns_exception(self, caplog) -> None:
+	async def test_find_by_user_id_returns_exception(self, caplog:LogCaptureFixture) -> None:
 		"""
 		Tests method where it returns an exception
 		"""
@@ -110,7 +111,7 @@ class TestUserRepositoryHelper:
 @pytest.mark.asyncio
 class TestAPIKeyRepositoryHelper:
 	
-	async def test_find_active_by_key_has_exception(self, caplog) -> None:
+	async def test_find_active_by_key_has_exception(self, caplog:LogCaptureFixture) -> None:
 		
 		repository = FakeApiKeyStore()
 		
@@ -143,7 +144,7 @@ class TestAPIKeyRepositoryHelper:
 @pytest.mark.asyncio
 class TestRepoRepositoryHelper:
 	
-	async def test_find_by_repo_id_has_exception(self, caplog) -> None:
+	async def test_find_by_repo_id_has_exception(self, caplog:LogCaptureFixture) -> None:
 		
 		repository = FakeRepoStore()
 		
@@ -162,7 +163,7 @@ class TestRepoRepositoryHelper:
 		assert not returned_value
 		assert log_record.message == exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(repo_id=repo_id)
 	
-	async def test_find_by_user_and_url_has_exception(self, caplog) -> None:
+	async def test_find_by_user_and_url_has_exception(self, caplog:LogCaptureFixture) -> None:
 		
 		repository = FakeRepoStore()
 		
@@ -218,7 +219,7 @@ class TestRepoRepositoryHelper:
 @pytest.mark.asyncio
 class TestGitLabelRepositoryHelper:
 	
-	async def test_find_by_user_and_hosting_has_exception(self, caplog) -> None:
+	async def test_find_by_user_and_hosting_has_exception(self, caplog:LogCaptureFixture) -> None:
 		"""
 		Tests method where it returns an exception
 		"""
@@ -301,7 +302,7 @@ class TestContextRepositoryHelper:
 		helper = ContextRepositoryHelper(repo=user_repository)
 		
 		with pytest.raises(ContextNotFoundError) as exc_info:
-			_ = await helper.update_repo_repo_system_reference(context_id=str(uuid.uuid4()), repo_system_reference="some repo_system_reference")
+			_ = await helper.update_repo_system_reference(context_id=str(uuid.uuid4()), repo_system_reference="some repo_system_reference")
 		
 		assert exc_info.value.user_message == exception_constants.CONTEXT_NOT_FOUND
 	
@@ -315,7 +316,7 @@ class TestContextRepositoryHelper:
 		helper = ContextRepositoryHelper(repo=user_repository)
 		
 		with pytest.raises(Exception) as exc_info:
-			_ = await helper.update_repo_repo_system_reference(context_id=str(uuid.uuid4()), repo_system_reference="some repo_system_reference")
+			_ = await helper.update_repo_system_reference(context_id=str(uuid.uuid4()), repo_system_reference="some repo_system_reference")
 		
 		assert exc_info.value.user_message == exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED
 	

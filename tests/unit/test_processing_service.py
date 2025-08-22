@@ -901,7 +901,7 @@ class TestProcessingService:
             self, mock_together_class, processing_service, mock_repositories, sample_documents
     ):
         # Make the awaited repo method an AsyncMock and use the correct name
-        mock_repositories["context"].update_repo_repo_system_reference = AsyncMock()
+        mock_repositories["context"].update_repo_system_reference = AsyncMock()
         
         # Together client mock (sync call in your code, so MagicMock is fine)
         mock_response = MagicMock()
@@ -933,7 +933,7 @@ class TestProcessingService:
             )
             
             assert result is True
-            mock_repositories["context"].update_repo_repo_system_reference.assert_called_once_with(
+            mock_repositories["context"].update_repo_system_reference.assert_called_once_with(
                 "repo123", repo_system_reference="Comprehensive analysis result"
             )
 
