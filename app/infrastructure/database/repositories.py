@@ -35,7 +35,7 @@ class UserRepositoryHelper:
             total_updated = await self._repo.increment_token_usage(user_id, tokens_used)
             
             if not total_updated or total_updated <= 0:
-                raise Exception(exception_constants.ERROR_USER_TOKEN_USAGE_UPDATE)
+                raise DatabaseError(exception_constants.ERROR_USER_TOKEN_USAGE_UPDATE)
             
             logger.info(f"Updated token usage for user {user_id}: +{tokens_used}")
         except Exception as e:
