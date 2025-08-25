@@ -46,7 +46,7 @@ dependencies = [
     "langchain-together==0.3.0",
     "together==1.5.17",
     "tiktoken==0.7",
-    "models @ git+https://github.com/montymobile1/devdox-ai-models.git@430c9a1",
+    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@9ce0798",
     "devdox-ai-encryption @ git+https://github.com/montymobile1/devdox-ai-encryption.git@4eefae1",
 ]
 
@@ -71,7 +71,7 @@ devdox-context-worker = "app.worker:start_worker"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*", "models*"]
+include = ["app*", "models_src*"]
 
 
 [tool.black]

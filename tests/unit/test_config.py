@@ -220,7 +220,7 @@ class TestGetTortoiseConfig:
 
         assert "apps" in config
         assert "models" in config["apps"]
-        assert "models" in config["apps"]["models"]["models"]
+        assert "models_src.models" in config["apps"]["models"]["models"]
         assert "aerich.models" in config["apps"]["models"]["models"]
         assert config["apps"]["models"]["default_connection"] == "default"
 
