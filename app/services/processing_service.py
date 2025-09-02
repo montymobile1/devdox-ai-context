@@ -342,13 +342,17 @@ class ProcessingService:
 
     async def process_repository(self, job_payload: Dict[str, Any]) -> ProcessingResult:
         """Process a repository and create context"""
-
+        
+        logger.info("Repository processing started .... ")
+        
         context_id = job_payload["context_id"]
 
         start_time = datetime.now(timezone.utc)
 
         try:
             # Get repository information
+            
+            logger.info("Finding repository by repo id .... ")
             repo = await self.repo_repository.find_by_repo_id(job_payload["repo_id"])
             if not repo:
                 return ProcessingResult(
@@ -361,18 +365,25 @@ class ProcessingService:
                 )
 
             # Get git credentials
+            logger.info("Authenticating user git client .... ")
             _ = await self._get_authenticated_git_client(
                 job_payload["user_id"],
                 job_payload["git_provider"],
                 job_payload["git_token"],
             )
+            
             # Fetch repository files
+            logger.info("Cloning and processing repository files .... ")
+            
             relative_path = await self.prepare_repository(repo.repo_name)
-
+            
             files = self.clone_and_process_repository(
                 repo.html_url, relative_path, job_payload.get("branch", "production")
             )
+            
             repo_local = Repo(relative_path)
+            
+            logger.info("Generating commit hash .... ")
             commit_hash = repo_local.head.commit.hexsha
             if repo.last_commit == commit_hash and repo.status == "failed":
                 return ProcessingResult(
@@ -383,16 +394,22 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository already processed",
                 )
+            
             # Process files into chunks
+            logger.info("Processing repository files into chunks .... ")
             chunks = self._process_files_to_chunks(files)
-
+            
+            logger.info("Analyze chunks and save into db .... ")
             _ = await self.analyze_repository(chunks, relative_path, repo.language, repo.id)
+            
+            logger.info("Creating embeddings from chunks .... ")
             embeddings = self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
 
             # Store in vector database
+            logger.info("Storing embeddings in db .... ")
             _ = await self.code_chunks_repository.store_emebeddings(
                 repo_id=str(repo.id),
                 user_id=repo.user_id,
@@ -403,7 +420,8 @@ class ProcessingService:
             # Update context completion
             end_time = datetime.now(timezone.utc)
             processing_time = (end_time - start_time).total_seconds()
-
+            
+            logger.info("Updating the status of the repository that it has been processed .... ")
             await self.context_repository.update_status(
                 str(repo.id),
                 "completed",
