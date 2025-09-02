@@ -44,7 +44,8 @@ ERROR_USER_TOKEN_USAGE_UPDATE="Failed to update token usage"
 
 ERROR_FINDING_API_KEY="Error finding API key"
 
-ERROR_REPO_NOT_FOUND_BY_ID="Error finding repo by repo_id {repo_id}"
+ERROR_REPO_NOT_FOUND_BY_REPO_ID= "Error finding repo by repo_id {repo_id}"
+ERROR_REPO_NOT_FOUND_BY_ID= "Error finding repo by id {id}"
 ERROR_FINDING_REPO="Error finding repo for user {user_id} and URL {html_url}"
 
 ERROR_FINDING_GIT_LABEL="Error finding git label"
