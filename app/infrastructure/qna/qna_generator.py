@@ -46,7 +46,6 @@ analysis and **no** email code. It’s a single responsibility “Q&A packer”.
 from __future__ import annotations
 import json
 import logging
-import re
 from typing import Dict, List, Tuple, Optional
 
 from app.infrastructure.database.repositories import RepoRepositoryHelper
@@ -140,14 +139,31 @@ QUESTIONS
 
 def _strip_code_fences(text: str) -> str:
     """
-    Remove accidental Markdown code fences that some models include around JSON.
-    Args:
-        text: Raw LLM output.
-    Returns:
-        The inner JSON if fenced, otherwise a trimmed original string.
+    Extract the content of the first triple-backtick code fence, if present.
+    Accepts an optional language tag (e.g., ```json).
+    Falls back to the original text (trimmed) when no fences found.
     """
-    m = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
-    return m.group(1).strip() if m else text.strip()
+    s = (text or "").strip()
+    start = s.find("```")
+    if start == -1:
+        return s
+
+    end = s.find("```", start + 3)
+    if end == -1:
+        return s  # no closing fence → return original
+
+    inner = s[start + 3:end]
+
+    # If the first line looks like a language tag (e.g., "json"), drop it.
+    # Typical fenced blocks are:
+    # ```json\n<content>\n```
+    # ```\n<content>\n```
+    if "\n" in inner:
+        first_line, rest = inner.split("\n", 1)
+        if first_line.strip().lower() in ("json", ""):
+            return rest.strip()
+
+    return inner.strip()
 
 def _normalize_confidence_score(x: float | None) -> float:
     """
