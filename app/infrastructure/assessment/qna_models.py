@@ -1,7 +1,10 @@
 from __future__ import annotations
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, timezone
+
+from infrastructure.assessment.qna_generator import snippet_calculator
+
 
 class QAPair(BaseModel):
     id: str = Field(..., description="Stable identifier for the question (e.g., 'goal')")
@@ -26,6 +29,12 @@ class QAPair(BaseModel):
         max_length=2,
         description="Up to two short snippets (quotes/paraphrases) from the analysis that support the answer."
     )
+    
+    @field_validator("evidence_snippets")
+    @classmethod
+    def cap_snippets_len(cls, v: List[str]) -> List[str]:
+        # defense-in-depth against oversized items
+        return snippet_calculator(v)
 
 class ProjectQnAPackage(BaseModel):
     project_name: str = Field(

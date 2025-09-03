@@ -75,6 +75,31 @@ DEFAULT_QUESTIONS: List[Tuple[str, str]] = [
 # ---------------------------
 # Helpers / constants
 # ---------------------------
+_MAX_SNIPPET_CHARS = 280
+_TRUTHY = {"1", "true", "yes", "y", "t"}
+_FALSY  = {"0", "false", "no", "n", "f"}
+
+def _to_bool(v, default: bool = False) -> bool:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        # 0 -> False, anything else -> True
+        return bool(v)
+    if v is None:
+        return default
+    s = str(v).strip().lower()
+    if s in _TRUTHY:
+        return True
+    if s in _FALSY:
+        return False
+    return default
+
+def snippet_calculator(raw_snippets:List[str]) -> list[str]:
+    def _clip(s: object, n: int) -> str:
+        s = str(s)
+        return s if len(s) <= n else s[: max(0, n - 1)] + "…"
+
+    return [_clip(s, _MAX_SNIPPET_CHARS) for s in raw_snippets][:2]
 
 def _build_qna_prompt(analysis_text: str, questions: list[tuple[str, str]]) -> str:
     """
@@ -191,6 +216,10 @@ def _parse_qna_json_response(raw: str, questions: List[Tuple[str, str]]) -> List
 
         seen = set()
         for item in data:
+            if not isinstance(item, dict):
+                # ignore junk items
+                continue
+            
             qid = (item.get("id") or "").strip()
             if not qid:
                 continue
@@ -200,11 +229,11 @@ def _parse_qna_json_response(raw: str, questions: List[Tuple[str, str]]) -> List
                 continue
 
             conf = _normalize_confidence_score(item.get("confidence"))
-            insuff = bool(item.get("insufficient_evidence", False))
-            snippets = item.get("evidence_snippets") or []
-            # normalize snippets to <=2 strings
-            if isinstance(snippets, list):
-                snippets = [str(s) for s in snippets][:2]
+            insuff = _to_bool(item.get("insufficient_evidence", False))
+            snippets_raw = item.get("evidence_snippets") or []
+            # normalize snippets
+            if isinstance(snippets_raw, list):
+                snippets = snippet_calculator(snippets_raw)
             else:
                 snippets = []
 
@@ -348,6 +377,9 @@ async def generate_project_qna(
         - If the model’s JSON is malformed, a lenient parser ensures you still
           get a well-formed `ProjectQnAPackage` with sensible defaults.
     """
+    if batch_size <= 0:
+        raise ValueError("batch_size must be >= 1")
+    
     questions = questions or DEFAULT_QUESTIONS
 
     repo = await repo_repository.find_repo_by_id(id_for_repo)
