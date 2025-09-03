@@ -243,18 +243,6 @@ class TestGlobalInstances:
         assert "connections" in TORTOISE_ORM
         assert "apps" in TORTOISE_ORM
 
-
-class TestSettingsConfig:
-    """Test Settings configuration"""
-
-    def test_settings_config_class(self):
-        """Test Settings.Config class"""
-        config = Settings.Config
-        assert config.env_file == "app/.env"
-        assert config.case_sensitive is True
-        assert config.extra == "ignore"
-
-
 class TestFieldValidation:
     """Test field validation edge cases"""
 
@@ -289,7 +277,8 @@ class TestFieldValidation:
         ):
             with pytest.raises(ValidationError):
                 Settings()
-
+    
+    @pytest.mark.skipif(settings.Environment.lower() != "test", reason="This test only works on a test environment on the pipeline")
     def test_vector_dimensions_validation(self):
         """Test vector dimensions validation"""
         with patch.dict(

@@ -788,7 +788,7 @@ class TestProcessingService:
         result = processing_service._create_embeddings(sample_documents)
 
         assert result == []
-
+    
     @pytest.mark.asyncio
     @patch("app.services.processing_service.Repo")
     async def test_process_repository_success(
@@ -803,19 +803,22 @@ class TestProcessingService:
             "git_token": "token123",
             "branch": "main",
         }
-
+        
         # Setup mocks
         mock_repositories["repo"].find_by_repo_id.return_value = sample_repo
-
+        
+        # ADD THIS: Mock find_repo_by_id for the QNA generator
+        mock_repositories["repo"].find_repo_by_id = AsyncMock(return_value=sample_repo)
+        
         mock_repo_instance = MagicMock()
-        mock_repo_instance.head.commit.hexsha = "new_commit_hash"
+        mock_repo_instance.head.commit.hexsha = "abc123"
         mock_repo_class.return_value = mock_repo_instance
-
+        
         # Mock all the processing steps
         processing_service._get_authenticated_git_client = AsyncMock()
         with tempfile.TemporaryDirectory() as tmp_dir:
             processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
-
+        
         processing_service.clone_and_process_repository = MagicMock(
             return_value=[
                 Document(page_content="test content", metadata={"source": "test.py"})
@@ -832,9 +835,9 @@ class TestProcessingService:
                 {"chunk_id": "chunk1", "embedding": [0.1, 0.2], "content": "chunk1"}
             ]
         )
-
+        
         result = await processing_service.process_repository(job_payload)
-
+        
         assert result.success is True
         assert result.context_id == "ctx123"
         assert result.chunks_created == 1
@@ -1065,66 +1068,6 @@ class TestProcessingService:
 
         assert result == []
 
-    @pytest.mark.asyncio
-    @patch("app.services.processing_service.Repo")
-    async def test_process_repository_success(
-        self, mock_repo_class, processing_service, mock_repositories, sample_repo
-    ):
-        """Test successful repository processing"""
-        job_payload = {
-            "context_id": "ctx123",
-            "repo_id": "repo456",
-            "user_id": "user789",
-            "git_provider": "github",
-            "git_token": "token123",
-            "branch": "main",
-        }
-
-        # Setup mocks
-        mock_repositories["repo"].find_by_repo_id.return_value = sample_repo
-
-        mock_repo_instance = MagicMock()
-        mock_repo_instance.head.commit.hexsha = "abc123"
-        mock_repo_class.return_value = mock_repo_instance
-
-        # Mock all the processing steps
-        processing_service._get_authenticated_git_client = AsyncMock()
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            processing_service.prepare_repository = AsyncMock(return_value=tmp_dir)
-
-        processing_service.clone_and_process_repository = MagicMock(
-            return_value=[
-                Document(page_content="test content", metadata={"source": "test.py"})
-            ]
-        )
-        processing_service._process_files_to_chunks = MagicMock(
-            return_value=[
-                Document(page_content="chunk1", metadata={"source": "test.py"})
-            ]
-        )
-        processing_service._create_embeddings = MagicMock(
-            return_value=[
-                {"chunk_id": "chunk1", "embedding": [0.1, 0.2], "content": "chunk1"}
-            ]
-        )
-
-        result = await processing_service.process_repository(job_payload)
-
-        assert result.success is True
-        assert result.context_id == "ctx123"
-        assert result.chunks_created == 1
-        assert result.embeddings_created == 1
-        assert result.processing_time is not None
-
-        # Verify all steps were called
-        mock_repositories["repo"].find_by_repo_id.assert_called_once_with("repo456")
-        processing_service._get_authenticated_git_client.assert_called_once()
-        processing_service.prepare_repository.assert_called_once()
-        processing_service.clone_and_process_repository.assert_called_once()
-        processing_service._process_files_to_chunks.assert_called_once()
-        processing_service._create_embeddings.assert_called_once()
-        mock_repositories["code_chunks"].store_emebeddings.assert_called_once()
-        mock_repositories["context"].update_status.assert_called()
 
     @pytest.mark.asyncio
     async def test_process_repository_repo_not_found(
@@ -1244,7 +1187,7 @@ class TestProcessingService:
 
 class TestProcessingServiceIntegration:
     """Integration tests for ProcessingService"""
-
+    
     @pytest.mark.asyncio
     @patch("app.services.processing_service.Repo")
     async def test_full_processing_workflow_minimal(self, mock_repo):
@@ -1253,34 +1196,41 @@ class TestProcessingServiceIntegration:
         mock_repo_instance = MagicMock()
         mock_repo_instance.head.commit.hexsha = "abc123"
         mock_repo.return_value = mock_repo_instance
+        
         # Create all mocks
         context_repo = MagicMock()
         context_repo.update_status = AsyncMock()
-
+        context_repo.update_repo_system_reference = AsyncMock()
+        
         user_repo = MagicMock()
         user_repo.find_by_user_id = AsyncMock(
             return_value=MagicMock(encryption_salt="salt")
         )
-
+        
         repo_repo = MagicMock()
         sample_repo = MagicMock()
         sample_repo.id = "repo123"
         sample_repo.repo_name = "test-repo"
         sample_repo.html_url = "https://github.com/test/test-repo"
         sample_repo.user_id = "user123"
+        sample_repo.language = ["Python"]  # Add language attribute
         repo_repo.find_by_repo_id = AsyncMock(return_value=sample_repo)
-
+        
+        # ADD THIS: Mock find_repo_by_id for the QNA generator
+        repo_repo.find_repo_by_id = AsyncMock(return_value=sample_repo)
+        
         git_label_repo = MagicMock()
         git_label_repo.find_by_user_and_hosting = AsyncMock(
             return_value=MagicMock(token_value="token")
         )
-
+        
         code_chunks_repo = MagicMock()
         code_chunks_repo.store_emebeddings = AsyncMock()
-
+        
         encryption_service = MagicMock()
         encryption_service.decrypt_for_user = MagicMock(return_value="decrypted_token")
-
+        encryption_service.decrypt = MagicMock(return_value="decrypted_db_token")
+        
         # Create service
         service = ProcessingService(
             context_repository=context_repo,
@@ -1290,17 +1240,17 @@ class TestProcessingServiceIntegration:
             encryption_service=encryption_service,
             code_chunks_repository=code_chunks_repo,
         )
-
+        
         # Mock all processing steps
         service._get_authenticated_git_client = AsyncMock()
         with tempfile.TemporaryDirectory() as tmp_dir:
             service.prepare_repository = AsyncMock(return_value=tmp_dir)
-
+        
         service.clone_and_process_repository = MagicMock(return_value=[])
-
+        service.analyze_repository = AsyncMock(return_value=True)
         service._process_files_to_chunks = MagicMock(return_value=[])
         service._create_embeddings = MagicMock(return_value=[])
-
+        
         # Test payload
         payload = {
             "context_id": "ctx123",
@@ -1309,9 +1259,10 @@ class TestProcessingServiceIntegration:
             "git_provider": "github",
             "git_token": "token123",
         }
-
+        
         # Process
         result = await service.process_repository(payload)
+        
         # Verify success with empty results
         assert result.success is True
         assert result.context_id == "ctx123"
