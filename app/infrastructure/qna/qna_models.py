@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, timezone
 
-from app.infrastructure.assessment.qna_utils import snippet_calculator
+from app.infrastructure.qna.qna_utils import snippet_calculator
 
 class QAPair(BaseModel):
     id: str = Field(..., description="Stable identifier for the question (e.g., 'goal')")

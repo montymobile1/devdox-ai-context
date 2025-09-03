@@ -23,7 +23,7 @@ from app.handlers.utils.repo_fetcher import RepoFetcher
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
-from app.infrastructure.assessment.qna_generator import generate_project_qna
+from app.infrastructure.qna.qna_generator import generate_project_qna
 
 logger = logging.getLogger(__name__)
 
