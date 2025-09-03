@@ -1,7 +1,11 @@
 from typing import List
 
-from app.infrastructure.assessment.qna_models import FALSY, MAX_SNIPPET_CHARS, TRUTHY
 
+MAX_SNIPPET_CHARS = 280
+TRUTHY = {"1", "true", "yes", "y", "t"}
+FALSY  = {"0", "false", "no", "n", "f"}
+
+NO_ANSWER = "(no answer)"
 
 def snippet_calculator(raw_snippets:List[str]) -> list[str]:
     def _clip(s: object, n: int) -> str:

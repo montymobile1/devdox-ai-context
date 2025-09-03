@@ -5,10 +5,6 @@ from datetime import datetime, timezone
 
 from app.infrastructure.assessment.qna_utils import snippet_calculator
 
-MAX_SNIPPET_CHARS = 280
-TRUTHY = {"1", "true", "yes", "y", "t"}
-FALSY  = {"0", "false", "no", "n", "f"}
-
 class QAPair(BaseModel):
     id: str = Field(..., description="Stable identifier for the question (e.g., 'goal')")
     question: str = Field(..., description="Human-readable question text")

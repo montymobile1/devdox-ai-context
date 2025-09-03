@@ -53,7 +53,7 @@ from app.infrastructure.database.repositories import RepoRepositoryHelper
 from together import Together
 
 from .qna_models import QAPair, ProjectQnAPackage
-from .qna_utils import _to_bool, snippet_calculator
+from .qna_utils import _to_bool, NO_ANSWER, snippet_calculator
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +164,8 @@ def _normalize_confidence_score(x: float | None) -> float:
     except Exception:
         return 0.0
 
+
+
 def _parse_qna_json_response(raw: str, questions: List[Tuple[str, str]]) -> List[QAPair]:
     """
     Parse the model’s JSON into typed `QAPair`s, leniently.
@@ -230,7 +232,7 @@ def _parse_qna_json_response(raw: str, questions: List[Tuple[str, str]]) -> List
                 out.append(QAPair(
                     id=qid,
                     question=q,
-                    answer="(no answer)",
+                    answer=NO_ANSWER,
                     confidence=0.0,
                     insufficient_evidence=True,
                     evidence_snippets=[],
@@ -263,7 +265,7 @@ def _chunk(lst: List[Tuple[str, str]], n: int) -> List[List[Tuple[str, str]]]:
     return [lst[i:i+n] for i in range(0, len(lst), n)]
 
 def _ask_batch(
-    together_client,
+    together_client:Together,
     model: str,
     analysis_text: str,
     qs: List[Tuple[str, str]],
@@ -291,6 +293,9 @@ def _ask_batch(
     """
     prompt = _build_qna_prompt(analysis_text, qs)
     
+    raw_parse = "[]"       # safe default for parser
+    raw_audit = ""         # what we’ll append to raw_responses for observability
+    
     try:
         resp = together_client.chat.completions.create(
             model=model,
@@ -299,23 +304,26 @@ def _ask_batch(
             temperature=temperature,
             top_p=0.9,
         )
-        
         try:
-            raw = (resp.choices[0].message.content or "").strip()
-            if not raw:
-                # Ensure parser gets valid JSON array → gaps will be filled later.
-                raw = json.dumps([])
+            content = (resp.choices[0].message.content or "").strip()
         except Exception:
             logger.exception("ERROR extracting raw response")
-            raw = json.dumps([])
+            content = ""
         
-    except Exception:
+        if content:
+            raw_parse = content       # parser sees the actual JSON
+            raw_audit = content       # logs/UI also see the actual content
+        else:
+            raw_parse = "[]"          # parser gets empty array (placeholders filled later)
+            raw_audit = "(empty content from model)"
+    
+    except Exception as e:
         logger.exception("ERROR calling model")
-        raw = "ERROR calling model"
+        raw_parse = "[]"              # keep parser happy → placeholders
+        raw_audit = f"ERROR calling model: {e}"  # human-readable for logs/UI
     
-    pairs = _parse_qna_json_response(raw, qs)
-    
-    return pairs, prompt, raw
+    pairs = _parse_qna_json_response(raw_parse, qs)
+    return pairs, prompt, raw_audit
 
 # --------------------------------------------
 # Public API (pure function returning QnA data)
@@ -401,18 +409,27 @@ async def generate_project_qna(
     raw_responses: List[str] = []
     
     merged: Dict[str, QAPair] = {}
+    
     for i, chunk_qs in enumerate(_chunk(questions, batch_size), start=1):
-        chunk_pairs, prompt, raw = _ask_batch(
-            together_client, model, analysis_text, chunk_qs,
-            temperature=temperature, max_tokens=max_tokens
-        )
+        try:
+            chunk_pairs, prompt, audit = _ask_batch(
+                together_client, model, analysis_text, chunk_qs,
+                temperature=temperature, max_tokens=max_tokens
+            )
+        except Exception as e:
+            prompt = _build_qna_prompt(analysis_text, chunk_qs)
+            audit = f"ERROR in _ask_batch: {e}"
+            chunk_pairs = [QAPair(id=qid, question=q, answer=NO_ANSWER,
+                                  confidence=0.0, insufficient_evidence=True, evidence_snippets=[])
+                           for qid, q in chunk_qs]
+        
         raw_prompts.append(f"--- BATCH {i} PROMPT ---\n{prompt}")
-        raw_responses.append(f"--- BATCH {i} RESPONSE ---\n{raw}")
+        raw_responses.append(f"--- BATCH {i} RESPONSE ---\n{audit}")
         for p in chunk_pairs:
             merged[p.id] = p
     
     ordered_pairs = [merged.get(qid) or QAPair(
-        id=qid, question=q, answer="(no answer)",
+        id=qid, question=q, answer=NO_ANSWER,
         confidence=0.0, insufficient_evidence=True, evidence_snippets=[]
     ) for qid, q in questions]
     
