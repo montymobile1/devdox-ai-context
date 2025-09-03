@@ -50,8 +50,10 @@ import re
 from typing import Dict, List, Tuple, Optional
 
 from app.infrastructure.database.repositories import RepoRepositoryHelper
+from together import Together
 
 from .qna_models import QAPair, ProjectQnAPackage
+from .qna_utils import _to_bool, snippet_calculator
 
 logger = logging.getLogger(__name__)
 
@@ -75,31 +77,6 @@ DEFAULT_QUESTIONS: List[Tuple[str, str]] = [
 # ---------------------------
 # Helpers / constants
 # ---------------------------
-_MAX_SNIPPET_CHARS = 280
-_TRUTHY = {"1", "true", "yes", "y", "t"}
-_FALSY  = {"0", "false", "no", "n", "f"}
-
-def _to_bool(v, default: bool = False) -> bool:
-    if isinstance(v, bool):
-        return v
-    if isinstance(v, (int, float)):
-        # 0 -> False, anything else -> True
-        return bool(v)
-    if v is None:
-        return default
-    s = str(v).strip().lower()
-    if s in _TRUTHY:
-        return True
-    if s in _FALSY:
-        return False
-    return default
-
-def snippet_calculator(raw_snippets:List[str]) -> list[str]:
-    def _clip(s: object, n: int) -> str:
-        s = str(s)
-        return s if len(s) <= n else s[: max(0, n - 1)] + "…"
-
-    return [_clip(s, _MAX_SNIPPET_CHARS) for s in raw_snippets][:2]
 
 def _build_qna_prompt(analysis_text: str, questions: list[tuple[str, str]]) -> str:
     """
@@ -313,15 +290,32 @@ def _ask_batch(
         - raw_json: The raw model response content (for observability/debugging)
     """
     prompt = _build_qna_prompt(analysis_text, qs)
-    resp = together_client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=temperature,
-        top_p=0.9,
-    )
-    raw = resp.choices[0].message.content
-    return _parse_qna_json_response(raw, qs), prompt, raw
+    
+    try:
+        resp = together_client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=0.9,
+        )
+        
+        try:
+            raw = (resp.choices[0].message.content or "").strip()
+            if not raw:
+                # Ensure parser gets valid JSON array → gaps will be filled later.
+                raw = json.dumps([])
+        except Exception:
+            logger.exception("ERROR extracting raw response")
+            raw = json.dumps([])
+        
+    except Exception:
+        logger.exception("ERROR calling model")
+        raw = "ERROR calling model"
+    
+    pairs = _parse_qna_json_response(raw, qs)
+    
+    return pairs, prompt, raw
 
 # --------------------------------------------
 # Public API (pure function returning QnA data)
@@ -331,8 +325,8 @@ async def generate_project_qna(
     id_for_repo: str,
     project_name: str,
     repo_url: str,
-    together_client,
-    repo_repository,
+    together_client:Together,
+    repo_repository:RepoRepositoryHelper,
     questions: Optional[List[Tuple[str, str]]] = None,
     model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
     temperature: float = 0.2,
