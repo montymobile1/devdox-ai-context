@@ -1,3 +1,4 @@
+import datetime
 import logging
 import uuid
 
@@ -158,7 +159,7 @@ class TestRepoRepositoryHelper:
 			
 		assert not returned_value
 		assert any(
-			r.message == exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(repo_id=repo_id)
+			r.message == exception_constants.ERROR_REPO_NOT_FOUND_BY_REPO_ID.format(repo_id=repo_id)
 			for r in caplog.records
 		)
 		
@@ -183,37 +184,7 @@ class TestRepoRepositoryHelper:
 			r.message == exception_constants.ERROR_FINDING_REPO.format(user_id=user_id, html_url=html_url)
 			for r in caplog.records
 		)
-	
-	@pytest.mark.parametrize(
-		"db_output", [-1, 0], ids=["invalid inputs", "no data"]
-	)
-	async def test_update_processing_status_has_exception_1(self, db_output) -> None:
-		"""Returns RepoNotFoundError"""
 		
-		user_repository = StubRepoStore()
-		
-		user_repository.set_output(user_repository.update_status_by_repo_id, db_output)
-		
-		helper = RepoRepositoryHelper(repo=user_repository)
-		
-		with pytest.raises(RepoNotFoundError) as exc_info:
-			_ = await helper.update_processing_status(repo_id=str(uuid.uuid4()), status="some status")
-		
-		assert exc_info.value.user_message == exception_constants.REPOSITORY_NOT_FOUND
-	
-	async def test_update_processing_status_has_exception_2(self) -> None:
-		"""Returns RepoNotFoundError"""
-		
-		user_repository = StubRepoStore()
-		
-		user_repository.set_exception(user_repository.update_status_by_repo_id, Exception("EXCEPTION OCCURRED"))
-		
-		helper = RepoRepositoryHelper(repo=user_repository)
-		
-		with pytest.raises(Exception) as exc_info:
-			_ = await helper.update_processing_status(repo_id=str(uuid.uuid4()), status="some status")
-		
-		assert exc_info.value.user_message == exception_constants.DB_REPO_STATUS_UPDATE_FAILED
 		
 @pytest.mark.asyncio
 class TestGitLabelRepositoryHelper:
@@ -266,12 +237,15 @@ class TestContextRepositoryHelper:
 		
 		user_repository = StubRepoStore()
 		
-		user_repository.set_output(user_repository.update_status_by_repo_id, db_output)
+		user_repository.set_output(user_repository.update_analysis_metadata_by_id, db_output)
 		
 		helper = ContextRepositoryHelper(repo=user_repository)
 		
 		with pytest.raises(ContextNotFoundError) as exc_info:
-			_ = await helper.update_status(context_id=str(uuid.uuid4()), status="some status")
+			_ = await helper.update_status(context_id=str(uuid.uuid4()), status="some status",processing_end_time=datetime.datetime.now(datetime.timezone.utc),
+                total_files=0,
+                total_chunks=0,
+                total_embeddings=0,)
 
 		assert exc_info.value.user_message == exception_constants.CONTEXT_NOT_FOUND
 	
@@ -280,12 +254,16 @@ class TestContextRepositoryHelper:
 		
 		user_repository = StubRepoStore()
 		
-		user_repository.set_exception(user_repository.update_status_by_repo_id, Exception("EXCEPTION OCCURRED"))
+		user_repository.set_exception(user_repository.update_analysis_metadata_by_id, Exception("EXCEPTION OCCURRED"))
 		
 		helper = ContextRepositoryHelper(repo=user_repository)
 		
 		with pytest.raises(Exception) as exc_info:
-			_ = await helper.update_status(context_id=str(uuid.uuid4()), status="some status")
+			_ = await helper.update_status(context_id=str(uuid.uuid4()), status="some status", processing_end_time=datetime.datetime.now(datetime.timezone.utc),
+											total_files=0,
+											total_chunks=0,
+											total_embeddings=0
+			                               )
 		
 		assert exc_info.value.user_message == exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED
 	

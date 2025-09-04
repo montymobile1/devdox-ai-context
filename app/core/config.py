@@ -1,9 +1,12 @@
+from pathlib import Path
+
 from pydantic import Field, field_validator
 from typing import Any, Dict, ClassVar, Optional, List
 from enum import Enum
 
 from pydantic_settings import BaseSettings
 
+CONFIG_DIR = Path(__file__).parent
 
 search_path = "vault,public"
 
@@ -87,7 +90,7 @@ class Settings(BaseSettings):
     )
 
     CORS_ORIGINS: List[str] = ["http://localhost:8002"]
-
+    
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
@@ -96,7 +99,7 @@ class Settings(BaseSettings):
         return v
 
     class Config:
-        env_file = "app/.env"
+        env_file = CONFIG_DIR.parent / ".env"
         case_sensitive = True
         extra = "ignore"
 
@@ -148,7 +151,12 @@ def get_database_config() -> Dict[str, Any]:
             "database": settings_instance.SUPABASE_DB_NAME,
             "server_settings": {"search_path": search_path},
         }
-    return {"engine": "tortoise.backends.asyncpg", "credentials": credentials}
+    return {
+        "engine": "tortoise.backends.asyncpg",
+        "credentials": credentials,
+        "max_inactive_connection_lifetime": 1800.0,  # 30 minutes (default is 300)
+        "command_timeout": 120.0,                    # 2 minutes default per op
+    }
 
 
 def get_tortoise_config():
