@@ -224,6 +224,11 @@ def _parse_qna_json_response(raw: str, questions: List[Tuple[str, str]]) -> List
                 continue
 
             conf = _normalize_confidence_score(item.get("confidence"))
+            
+            # Enforce evidence hygiene: inferred answers must have confidence ≤ 0.6
+            if answer.lower().startswith("inferred:"):
+                conf = min(conf, 0.6)
+            
             insuff = _to_bool(item.get("insufficient_evidence", False))
             snippets_raw = item.get("evidence_snippets") or []
             # normalize snippets
