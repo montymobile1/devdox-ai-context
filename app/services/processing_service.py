@@ -452,6 +452,7 @@ class ProcessingService:
                 context_id=context_id,
                 processing_time=processing_time,
                 chunks_created=len(chunks),
+                qna_summary=qna_pkg,
                 embeddings_created=len(embeddings),
             )
 
