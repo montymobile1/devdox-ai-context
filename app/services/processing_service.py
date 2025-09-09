@@ -379,7 +379,7 @@ class ProcessingService:
             relative_path = await self.prepare_repository(repo.repo_name)
             
             files = self.clone_and_process_repository(
-                repo.html_url, relative_path, job_payload.get("branch", "production")
+                repo.html_url, relative_path, job_payload.get("branch", "main")
             )
             
             repo_local = Repo(relative_path)
