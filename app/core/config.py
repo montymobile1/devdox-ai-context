@@ -166,11 +166,14 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
+    
+    model_config = SettingsConfigDict(
+        env_file=CONFIG_DIR.parent / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
-    class Config:
-        env_file = CONFIG_DIR.parent / ".env"
-        case_sensitive = True
-        extra = "ignore"
 
 
 def get_database_config() -> Dict[str, Any]:
