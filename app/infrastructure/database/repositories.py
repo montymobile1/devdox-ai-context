@@ -190,8 +190,12 @@ class CodeChunksRepositoryHelper:
             
             created_chunks = await self._repo.bulk_save(formatted_chunks)
             
+            count = len(created_chunks) if created_chunks else 0
+            
             logger.info(f"Stored {len(created_chunks)} embeddings for repo {repo_id}")
-            return created_chunks[0] if created_chunks else None
+            
+            return created_chunks[0] if count else None
+        
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_CODE_CHUNKS_CREATE_FAILED) from e
 
