@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import EmailStr, Field, field_validator
+from pydantic import EmailStr, Field, field_validator, model_validator
 from typing import Any, Dict, ClassVar, Optional, List
 from enum import Enum
 
@@ -77,6 +77,12 @@ class MailSettings(BaseSettings):
         default=CONFIG_DIR.parent / "templates" / "email",
         description="Directory for Jinja2 templates (optional)."
     )
+    
+    @model_validator(mode="after")
+    def _validate_tls_mode(self):
+        if self.MAIL_STARTTLS and self.MAIL_SSL_TLS:
+            raise ValueError("Set only one of MAIL_STARTTLS or MAIL_SSL_TLS, not both.")
+        return self
     
     model_config = SettingsConfigDict(
         env_file=CONFIG_DIR.parent / ".env",
