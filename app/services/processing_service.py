@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from pathlib import Path
 import shutil
 import uuid
@@ -21,8 +22,11 @@ from app.infrastructure.database.repositories import (
 from app.infrastructure.external_apis.git_clients import GitClientFactory
 from app.handlers.utils.repo_fetcher import RepoFetcher
 from encryption_src.fernet.service import FernetEncryptionHelper
+from app.services.hybrid_loctus_generator import HybridLocustGenerator
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
+from app.handlers.utils.swagger_utils import get_api_schema, _sanitize_filename
+from app.handlers.utils.open_ai_parser import OpenAPIParser
 
 logger = logging.getLogger(__name__)
 
@@ -340,6 +344,112 @@ class ProcessingService:
         except Exception:
             return []
 
+    async def process_testing(self, job_payload: Dict[str, Any]) -> ProcessingResult:
+        """Process a repository and generate tests"""
+
+        context_id = job_payload.context_id
+
+        start_time = datetime.now(timezone.utc)
+
+        try:
+            # Get repository information
+            repo = await self.repo_repository.find_by_repo_id_user_id(job_payload.repo_id, job_payload.user_id)
+
+            if not repo:
+                return ProcessingResult(
+                    success=False,
+                    context_id=context_id,
+                    processing_time=0,
+                    chunks_created=0,
+                    embeddings_created=0,
+                    error_message="Repository not found",
+                )
+
+            # Get git credentials
+            _ = await self._get_authenticated_git_client(
+                job_payload.user_id,
+                job_payload.git_provider,
+                repo.token_id
+            )
+
+            relative_path = await self.prepare_repository(repo.repo_name+"_test")
+            together_client = Together(api_key=settings.TOGETHER_API_KEY)
+            api_schema = await get_api_schema(job_payload)
+
+            if not api_schema:
+                return ProcessingResult(
+                    success=False,
+                    context_id=context_id,
+                    error_message="Failed to retrieve API schema"
+                )
+
+            # Parse your OpenAPI schema
+            parser = OpenAPIParser()
+            try:
+                schema_data = parser.parse_schema(api_schema)
+                endpoints = parser.parse_endpoints()
+
+                api_info = parser.get_schema_info()
+
+                logger.info(f"📋 Parsed {len(endpoints)} endpoints from {api_info.get('title', 'API')}")
+
+            except ValueError as e:
+                return ProcessingResult(
+                    success=False,
+                    context_id=context_id,
+                    error_message=f"Invalid OpenAPI schema: {str(e)}"
+                )
+
+            if not endpoints:
+                return ProcessingResult(
+                    success=False,
+                    context_id=context_id,
+                    error_message="No endpoints found in API schema"
+                )
+
+            # Generate Locust tests
+            generator = HybridLocustGenerator(  ai_client=together_client
+        )
+            test_files, test_directories = await generator.generate_from_endpoints(
+                endpoints=endpoints,
+                api_info=api_info,
+                output_dir=str(relative_path)
+            )
+
+            created_files = []
+            for file_workflow in test_directories:
+                created_files += await generator._create_test_files_safely(file_workflow, relative_path/"workflows")
+
+            created_files += await generator._create_test_files_safely(test_files, relative_path)
+            # Update context completion
+            end_time = datetime.now(timezone.utc)
+            processing_time = (end_time - start_time).total_seconds()
+
+
+            return ProcessingResult(
+                success=True,
+                context_id=context_id,
+                processing_time=processing_time,
+                chunks_created=0,
+                embeddings_created=0,
+            )
+
+        except Exception as e:
+            logger.error(f"Processing failed for context {context_id}: {str(e)}")
+
+            await self.context_repository.update_status(
+                str(repo.id),
+                "failed",
+                processing_end_time=datetime.now(timezone.utc),
+                total_files=0,
+                total_chunks=0,
+                total_embeddings=0,
+            )
+
+            return ProcessingResult(
+                success=False, context_id=context_id, error_message=str(e)
+            )
+
     async def process_repository(self, job_payload: Dict[str, Any]) -> ProcessingResult:
         """Process a repository and create context"""
 
@@ -445,6 +555,7 @@ class ProcessingService:
         git_config = await self.git_label_repository.find_by_user_and_hosting(
             user_id, git_token, git_provider
         )
+
         # TODO : check if needed
         # if not git_config:
         #     raise Exception(f"No {git_provider} configuration found for user")

@@ -127,6 +127,13 @@ class TortoiseRepoRepository(RepoRepositoryInterface):
             logger.error(f"Error finding repo by repo_id {repo_id}: {str(e)}")
             return None
 
+    async def find_by_repo_id_user_id(self, repo_id: str, user_id:str) -> Optional[Repo]:
+        try:
+            return await Repo.filter(repo_id=repo_id, user_id=user_id).first()
+        except Exception as e:
+            logger.error(f"Error finding repo by repo_id {repo_id} and user_id : {str(e)}")
+            return None
+
     async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[Repo]:
         try:
             return await Repo.filter(user_id=user_id, html_url=html_url).first()

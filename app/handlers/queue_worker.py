@@ -39,7 +39,8 @@ class QueueWorker:
         self.stats["start_time"] = datetime.now(timezone.utc)
         # Start multiple worker loops for different queue types
         tasks = [
-            asyncio.create_task(self._worker_loop("processing", ["analyze", "process"]))
+            asyncio.create_task(self._worker_loop("processing", ["analyze", "process"])),
+            asyncio.create_task(self._worker_loop("testing", ["locust", "process"]))
         ]
 
         try:
@@ -98,6 +99,10 @@ class QueueWorker:
             # Route job to appropriate handler based on queue and type
             if queue_name == "processing" and job_type in ["analyze", "process"]:
                 await self.message_handler.handle_processing_message(payload)
+            elif queue_name == "testing" and job_type in ["locust", "testing"]:
+                await self.message_handler.handle_testing_message(payload)
+            else:
+                logging.warning(f"Unknown queue {queue_name} or job type {job_type}")
 
             # Mark job as completed
             await self.queue_service.complete_job(job)

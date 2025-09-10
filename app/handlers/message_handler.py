@@ -7,6 +7,7 @@ import httpx
 from app.services.auth_service import AuthService
 from app.services.processing_service import ProcessingService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
+from app.schemas.processing_result import SwaggerProcessingRequest
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,27 @@ class MessageHandler:
         self.auth_service = auth_service
         self.processing_service = processing_service
         self.queue_service = queue_service
+
+    async def handle_testing_message(self, job_payload: Dict[str, Any])-> None:
+        """Handle testing processing message"""
+
+        try:
+            swagger_request = SwaggerProcessingRequest(**job_payload)
+
+            # Process the testing phase
+            result = await self.processing_service.process_testing(swagger_request)
+            if result.success:
+                logger.info(f"Successfully processed testing {result.context_id}")
+
+
+            else:
+                logger.error(
+                    f"Failed to process context {result.context_id}: {result.error_message}"
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to handle testing message: {str(e)}")
+            raise
 
     async def handle_processing_message(self, job_payload: Dict[str, Any]) -> None:
         """Handle repository processing message"""
