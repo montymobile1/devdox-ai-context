@@ -40,7 +40,7 @@ class AIEnhancementConfig:
     enhance_workflows: bool = True
     enhance_test_data: bool = False
     enhance_validation: bool = False
-    create_domain_flows: bool = False
+    create_domain_flows: bool = True
     update_main_locust: bool = True
 
 
@@ -311,7 +311,7 @@ class HybridLocustGenerator:
                 return enhanced_content
             except Exception as e:
                 logger.error(f"Enhancement failed: {e}")
-                return None
+                return base_content
 
         except Exception as e:
             logger.error(f"Locustfile enhancement failed: {e}")
@@ -341,7 +341,15 @@ class HybridLocustGenerator:
                 )
 
 
-            # Enhancement 1: Enhanced custom workflows
+            # Enhancement 1: Domain-specific user flows
+            if self.ai_config.create_domain_flows:
+                domain_flows = await self._generate_domain_flows(endpoints, api_info)
+                if domain_flows:
+                    enhanced_files["custom_flows.py"] = domain_flows
+                    enhancements_applied.append("domain_flows")
+                    print("enhanced custom_flows file")
+
+            # Enhancement 2: Enhanced custom workflows
             if self.ai_config.enhance_workflows:
                 base_workflow_files = self.get_files_by_key(directory_files, 'base_workflow.py')
 
@@ -353,10 +361,10 @@ class HybridLocustGenerator:
                         )
                         if enhanced_workflow:
                             enhanced_directory_files.append({key: enhanced_workflow})
-
+                            print(f"enhanced_workflows_{key}")
                             enhancements_applied.append(f"enhanced_workflows_{key}")
 
-            # Enhancement 2: Smart test data generation
+            # Enhancement 3: Smart test data generation
             if self.ai_config.enhance_test_data:
                 enhanced_test_data = await self._enhance_test_data(
                     base_files.get("test_data.py", ""), endpoints, api_info
@@ -364,6 +372,16 @@ class HybridLocustGenerator:
                 if enhanced_test_data:
                     enhanced_files["test_data.py"] = enhanced_test_data
                     enhancements_applied.append("smart_test_data")
+
+
+            # Enhancement 4: Advanced response validation
+            if self.ai_config.enhance_validation:
+                enhanced_validation = await self._enhance_validation(
+                    base_files.get("utils.py", ""), endpoints, api_info
+                )
+                if enhanced_validation:
+                    enhanced_files["utils.py"] = enhanced_validation
+                    enhancements_applied.append("advanced_validation")
 
             processing_time = asyncio.get_event_loop().time() - start_time
 
@@ -390,6 +408,48 @@ class HybridLocustGenerator:
                 processing_time=processing_time,
             )
 
+    async def _generate_domain_flows(
+        self, endpoints: List[Endpoint], api_info: Dict[str, Any]
+    ) -> Optional[str]:
+        """Generate domain-specific user flows"""
+
+        # Analyze endpoints to determine domain
+        domain_analysis = self._analyze_api_domain(endpoints, api_info)
+
+        prompt = f"""Based on this API analysis, create domain-specific user flows for Locust testing:
+
+API Analysis:
+{domain_analysis}
+
+Endpoints Available:
+{self._format_endpoints_for_prompt(endpoints)}  # Limit for token efficiency
+
+Generate a Python file with domain-specific user flow classes that extend the base CustomUserFlow.
+Focus on realistic business workflows that users would actually perform.
+
+Requirements:
+1. Create 2-3 domain-specific flow classes
+2. Use sequential tasks for related API calls and use coorelation between them
+3. To check payload and update it if it is not valid
+4. Each flow should represent a complete business process
+5. Include proper error handling and realistic wait times
+6. Use the available endpoints in logical sequences
+7. Add meaningful logging and data tracking
+
+Always return your code wrapped in <code></code> tags with no explanations outside the tags DO NOT TRUNCATE THE CODE. 
+IMPORTANT: Return the SAME code with ONLY formatting fixes. Do not enhance or add anything
+Format: <code>your_python_code_here</code>"""
+        print("prompt line 453")
+        print(prompt)
+        try:
+            enhanced_content = await self._call_ai_service(prompt)
+            print("enhanced_content ", enhanced_content)
+            if enhanced_content :
+                return enhanced_content
+        except Exception as e:
+            logger.warning(f"Domain flows generation failed: {e}")
+
+        return ""
 
     def get_files_by_key(self,directory_files, target_key):
         """Return directory items that contain the specified key"""
@@ -557,7 +617,7 @@ VALIDATION RULES:
         except Exception as e:
             logger.warning(f"Workflow enhancement failed: {e}")
 
-        return None
+        return ""
 
     async def _enhance_test_data(
         self, base_content: str, endpoints: List[Endpoint], api_info: Dict[str, Any]
@@ -594,10 +654,73 @@ Output: Complete enhanced Python file content."""
         except Exception as e:
             logger.warning(f"Test data enhancement failed: {e}")
 
+        return ""
+
+    async def _enhance_validation(
+        self, base_content: str, endpoints: List[Endpoint], api_info: Dict[str, Any]
+    ) -> Optional[str]:
+        """Enhance response validation with endpoint-specific checks"""
+
+        validation_patterns = self._extract_validation_patterns(endpoints)
+
+        prompt = f"""Enhance this utils file with smarter response validation:
+
+Current File:
+{base_content}...
+
+Validation Patterns Needed:
+{validation_patterns}
+
+Enhance by:
+1. Adding endpoint-specific validation rules
+2. Creating schema-based response validation
+3. Adding business logic validation
+4. Implementing response data integrity checks
+5. Adding performance threshold validation
+
+Keep existing utility functions but add smarter validation logic.
+Output: Complete enhanced Python file content."""
+
+        try:
+            enhanced_content = await self._call_ai_service(prompt)
+            if enhanced_content :
+                return enhanced_content
+        except Exception as e:
+            logger.warning(f"Validation enhancement failed: {e}")
+
+        return ""
+
+    async def _generate_performance_scenarios(
+        self, endpoints: List[Endpoint], api_info: Dict[str, Any]
+    ) -> Optional[str]:
+        """Generate performance testing scenarios"""
+
+        performance_analysis = self._analyze_performance_patterns(endpoints)
+
+        prompt = f"""Create performance testing scenarios for this API:
+
+API: {api_info.get('title', 'Unknown API')}
+Performance Analysis:
+{performance_analysis}
+
+Create a Python file with specialized performance testing scenarios:
+1. Spike testing scenarios
+2. Stress testing patterns
+3. Volume testing with bulk operations
+4. Endurance testing scenarios
+5. Resource leak detection tests
+
+Each scenario should be a Locust user class with specific performance goals.
+Output: Complete Python file content only."""
+
+        try:
+            enhanced_content = await self._call_ai_service(prompt)
+            if enhanced_content and self._validate_python_code(enhanced_content):
+                return enhanced_content
+        except Exception as e:
+            logger.warning(f"Performance scenarios generation failed: {e}")
+
         return None
-
-
-
 
     def _fix_message_sequence(self, messages: List[Dict]) -> List[Dict]:
         """Ensure proper message sequence for Together AI"""
@@ -739,23 +862,21 @@ Output: Complete enhanced Python file content."""
 
             if attempt < 2:  # Wait before retry
                 await asyncio.sleep(2**attempt)
-
-        return None
+        print(f"issue for prompt {prompt}")
+        return ""
 
     def extract_code_from_response(self,response_text):
         # Extract content between <code> tags
-        code_tags = ['<code>(.*?)</code>', '<code_example>(.*?)</code_example>', '<code_test_data>(.*?)</code_test_data>']
-        found_codes = {}
-        for code_tag in code_tags:
-            code_match = re.search(code_tag, response_text, re.DOTALL)
-            if code_match:
-                # Extract tag name for identification
-                tag_name = code_tag.split('(')[0].replace('<', '').replace('>', '')
-                found_codes[tag_name] = code_match.group(1)
 
-            else:
-                # Fallback: return the whole response if no tags found
-                return response_text.strip()
+        code_match = re.search(r'<code>(.*?)</code>', response_text, re.DOTALL)
+        if code_match:
+            content = code_match.group(1).strip()
+            # Additional validation - ensure we got actual content
+            if content and len(content) > 0:
+                return content
+
+
+        return response_text.strip()
 
 
     def _clean_ai_response(self, content: str) -> str:
