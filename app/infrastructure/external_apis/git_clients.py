@@ -97,7 +97,7 @@ class GitLabClient(GitClient):
         }
         return any(filename.endswith(ext) for ext in extensions)
 
-
+# TODO: THIS IS LOCAL TO THIS PROJECT, NOT MEANT TO BE MOVED
 def retrieve_git_fetcher_or_die(
     store, provider: GitHosting | str, include_data_mapper: bool = True
 ) -> tuple[Any, Any]:
