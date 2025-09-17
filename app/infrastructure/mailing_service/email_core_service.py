@@ -32,15 +32,37 @@ class EmailDispatcher:
         self.settings = settings
         self.options = options or EmailDispatchOptions()
     
-    def _rewrite_recipients(self, to: Iterable[EmailStr], cc: Iterable[EmailStr], bcc: Iterable[EmailStr]) -> RecipientSet:
-        to = list(to or [])
-        cc = list(cc or [])
-        bcc = list(bcc or [])
+    def _dedupe_preserve_order(self, seq: Iterable[EmailStr]) -> list[EmailStr]:
+        """
+            Handles the case where _rewrite_recipients() merges always_bcc but can duplicate addresses
+            or put someone in BCC who’s already in To/CC.
+        """
+        seen: set[str] = set()
+        out: list[EmailStr] = []
+        for e in seq or []:
+            s = str(e).strip().lower()
+            if s in seen:
+                continue
+            seen.add(s)
+            out.append(e)
+        return out
+    
+    def _rewrite_recipients(self, to, cc, bcc) -> RecipientSet:
+        to = self._dedupe_preserve_order(to)
+        cc = self._dedupe_preserve_order(cc)
+        bcc = self._dedupe_preserve_order(bcc)
+        
         if self.options.redirect_all_to:
-            # hard redirect for safety in dev
-            return RecipientSet(to=self.options.redirect_all_to, cc=[], bcc=self.options.always_bcc)
-        # merge always_bcc
-        merged_bcc = list({*map(str, bcc), *map(str, self.options.always_bcc)})
+            return RecipientSet(
+                to=self._dedupe_preserve_order(self.options.redirect_all_to),
+                cc=[],
+                bcc=self._dedupe_preserve_order(self.options.always_bcc),
+            )
+        
+        merged_bcc = self._dedupe_preserve_order([*bcc, *self.options.always_bcc])
+        # remove any BCC that appears in To/CC
+        tocc = {str(x).lower() for x in [*to, *cc]}
+        merged_bcc = [e for e in merged_bcc if str(e).lower() not in tocc]
         return RecipientSet(to=to, cc=cc, bcc=merged_bcc)
     
     def _prefix_subject(self, subject: str) -> str:
