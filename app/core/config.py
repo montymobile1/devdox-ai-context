@@ -1,9 +1,12 @@
-from pydantic import Field, field_validator
+from pathlib import Path
+
+from pydantic import EmailStr, Field, field_validator, model_validator
 from typing import Any, Dict, ClassVar, Optional, List
 from enum import Enum
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
+CONFIG_DIR = Path(__file__).parent
 
 search_path = "vault,public"
 
@@ -19,6 +22,74 @@ class LogLevel(str, Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
 
+class MailSettings(BaseSettings):
+    MAIL_USERNAME: str = Field(
+        ...,
+        description="SMTP username. Some providers require it separately, others just use MAIL_FROM.",
+    )
+    MAIL_PASSWORD: str | None = Field(
+        default=None,
+        description="Password or app-specific key for authenticating to the SMTP server.",
+    )
+    MAIL_FROM: EmailStr = Field(
+        ...,
+        description="Default sender email address (appears in the 'From' header).",
+    )
+    MAIL_FROM_NAME: str | None = Field(
+        default=None,
+        description="Friendly name for the sender (appears alongside MAIL_FROM).",
+    )
+    MAIL_PORT: int = Field(
+        default=587,
+        description="Port for SMTP server. Usually 587 for STARTTLS, 465 for SSL/TLS, 25 as legacy.",
+    )
+    MAIL_SERVER: str = Field(
+        ...,
+        description="SMTP server hostname or IP address (e.g., smtp.gmail.com).",
+    )
+    MAIL_STARTTLS: bool = Field(
+        default=True,
+        description="Use STARTTLS (opportunistic TLS upgrade). Set false if server doesn’t support it.",
+    )
+    MAIL_SSL_TLS: bool = Field(
+        default=False,
+        description="Use direct SSL/TLS connection (usually on port 465).",
+    )
+    MAIL_USE_CREDENTIALS: bool = Field(
+        default=True,
+        description="Whether to authenticate with username/password. Set False for open relays (rare).",
+    )
+    MAIL_VALIDATE_CERTS: bool = Field(
+        default=True,
+        description="Validate SMTP server's TLS/SSL certificate. Set False only for self-signed certs.",
+    )
+    
+    MAIL_SUPPRESS_SEND: bool = Field(
+        default=False,
+        description="If True, suppresses actual sending (emails are 'mocked'). Useful in testing.",
+    )
+    MAIL_DEBUG: int = Field(
+        default=0,
+        description="Debug output level for SMTP interactions. 0 = silent, 1+ = verbose.",
+    )
+    
+    MAIL_TEMPLATE_FOLDER: str | Path | None = Field(
+        default=CONFIG_DIR.parent / "templates" / "email",
+        description="Directory for Jinja2 templates (optional)."
+    )
+    
+    @model_validator(mode="after")
+    def _validate_tls_mode(self):
+        if self.MAIL_STARTTLS and self.MAIL_SSL_TLS:
+            raise ValueError("Set only one of MAIL_STARTTLS or MAIL_SSL_TLS, not both.")
+        return self
+    
+    model_config = SettingsConfigDict(
+        env_file=CONFIG_DIR.parent / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
 
 class Settings(BaseSettings):
     # Application
@@ -33,7 +104,6 @@ class Settings(BaseSettings):
     PORT:int = 8004
 
     VERSION:str = "0.0.1"
-
 
     # Database
     DB_MAX_CONNECTIONS: int = Field(default=20, ge=1, le=100)
@@ -85,20 +155,25 @@ class Settings(BaseSettings):
     JOB_TIMEOUT_MINUTES: int = Field(
         default=30, ge=5, le=120, description="Job processing timeout"
     )
-
+    
+    mail: MailSettings = Field(default_factory=MailSettings)
+    
     CORS_ORIGINS: List[str] = ["http://localhost:8002"]
-
+    
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
+    
+    model_config = SettingsConfigDict(
+        env_file=CONFIG_DIR.parent / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
-    class Config:
-        env_file = "app/.env"
-        case_sensitive = True
-        extra = "ignore"
 
 
 def get_database_config() -> Dict[str, Any]:
@@ -148,7 +223,12 @@ def get_database_config() -> Dict[str, Any]:
             "database": settings_instance.SUPABASE_DB_NAME,
             "server_settings": {"search_path": search_path},
         }
-    return {"engine": "tortoise.backends.asyncpg", "credentials": credentials}
+    return {
+        "engine": "tortoise.backends.asyncpg",
+        "credentials": credentials,
+        "max_inactive_connection_lifetime": 1800.0,  # 30 minutes (default is 300)
+        "command_timeout": 120.0,                    # 2 minutes default per op
+    }
 
 
 def get_tortoise_config():
