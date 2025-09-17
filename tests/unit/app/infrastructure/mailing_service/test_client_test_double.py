@@ -7,7 +7,7 @@ from app.infrastructure.mailing_service.models import (
     OutgoingTemplatedHTMLEmail,
     OutgoingTemplatedTextEmail,
 )
-from test_doubles.mailing_service import FakeMailClient, StubMailClient
+from infrastructure.mailing_service.client_test_double import FakeMailClient, StubMailClient
 
 
 # ---------- Fixtures ----------
