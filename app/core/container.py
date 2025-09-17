@@ -1,3 +1,6 @@
+from app.services.email_service import EmailDispatcher, EmailDispatchOptions, QnAEmailService
+
+from app.infrastructure.mailing_service.client import FastAPIMailClient
 from dependency_injector import containers, providers
 
 from app.infrastructure.database.repositories import (
@@ -67,4 +70,40 @@ class Container(containers.DeclarativeContainer):
         auth_service=auth_service,
         processing_service=processing_service,
         queue_service=queue_service,
+    )
+    
+    # -------------------------
+    # Mail stack
+    # -------------------------
+
+    # small helper to ensure the template path is set
+    init_mail_settings = providers.Callable(
+        lambda s, d: (setattr(s, "MAIL_TEMPLATE_FOLDER", d), s)[1],
+        s=settings.mail,
+        d=settings.mail.MAIL_TEMPLATE_FOLDER,
+    )
+
+    mail_client = providers.Singleton(
+        FastAPIMailClient,
+        settings=init_mail_settings,
+    )
+
+    email_options = providers.Factory(
+            EmailDispatchOptions,
+            dry_run=True,
+            subject_prefix=None,
+            redirect_all_to=[],
+            always_bcc=[],
+        )
+
+    email_dispatcher = providers.Factory(
+        EmailDispatcher,
+        client=mail_client,
+        settings=settings.mail,
+        options=email_options,
+    )
+
+    qna_email_service = providers.Factory(
+        QnAEmailService,
+        dispatcher=email_dispatcher,
     )
