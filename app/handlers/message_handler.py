@@ -9,7 +9,7 @@ import httpx
 from app.services.auth_service import AuthService
 from app.services.processing_service import ProcessingService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
-from services.email_service import QnAEmailService
+from app.services.email_service import QnAEmailService
 
 logger = logging.getLogger(__name__)
 
