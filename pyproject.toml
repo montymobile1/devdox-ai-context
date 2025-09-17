@@ -20,6 +20,7 @@ dependencies = [
     "asyncio",
     "asyncpg==0.29.0",
     "tortoise-orm==0.24.0",
+    "fastapi-mail==1.4.0",
     "fastapi==0.115.12",
     "fastapi-cli==0.0.7",
     "uvicorn==0.34.2",
