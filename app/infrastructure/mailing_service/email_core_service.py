@@ -76,6 +76,38 @@ class EmailDispatcher:
             return subject
         return f"{p} {subject}"
     
+    def _with_common_headers(self, headers: Optional[dict[str, str]]) -> dict[str, str]:
+        """
+          Merge caller-provided email headers with safe, organization-wide defaults.
+
+          Purpose:
+              Centralizes “always-on” headers (e.g., compliance/ESP hints) so every
+              email gets them without each caller remembering to add them. This helps with:
+                - deliverability (consistent metadata for ESPs),
+                - compliance (e.g., List-Unsubscribe),
+                - campaign tracking (e.g., X-Campaign-ID).
+
+          Behavior:
+              - Returns a new dict containing the caller’s headers plus defaults.
+              - Never overwrites a header the caller already set (uses `setdefault`).
+              - Safe to call with None.
+
+          Args:
+              headers: Optional mapping passed by the caller (may be None).
+
+          Returns:
+              A dict with merged headers suitable for the mail client.
+
+          Example:
+              h = self._with_common_headers({"X-Campaign-ID": "qna-2025-01"})
+              # h now contains user headers plus any defaults (e.g., List-Unsubscribe).
+          """
+        h = {**(headers or {})}
+        # Optional examples—enable only if real:
+        # h.setdefault("List-Unsubscribe", "<mailto:unsubscribe@yourdomain>, <https://yourapp.com/unsub?token=XYZ>")
+        # h.setdefault("X-Campaign-ID", "devdox-qna-v1")
+        return h
+    
     async def send_templated_html(
             self,
             *,
@@ -91,6 +123,7 @@ class EmailDispatcher:
     ) -> dict[str, Any] | None:
         recipients = self._rewrite_recipients(to, cc or [], bcc or [])
         subject = self._prefix_subject(subject)
+        headers = self._with_common_headers(headers)
         
         email_model = OutgoingTemplatedHTMLEmail(
             subject=subject,
@@ -98,7 +131,7 @@ class EmailDispatcher:
             cc=recipients.cc,
             bcc=recipients.bcc,
             reply_to=list(reply_to or []),
-            headers=headers or {},
+            headers=headers,
             template_context=context,
             html_template=template,
             plain_template_fallback=text_fallback_template,
