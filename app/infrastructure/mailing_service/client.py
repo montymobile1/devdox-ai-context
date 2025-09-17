@@ -55,13 +55,15 @@ class FastAPIMailClient(IMailClient):
 		return self._fm
 	
 	def _generate_message_schema(self, envelope:EmailEnvelope, subtype:MessageType) -> MessageSchema:
+		headers = dict(envelope.headers) if envelope.headers else None
+		
 		return MessageSchema(
 			subject=envelope.subject,
 			recipients=envelope.recipients,
 			cc=envelope.cc,
 			bcc=envelope.bcc,
 			reply_to=envelope.reply_to,
-			headers=envelope.headers,
+			headers=headers,
 			subtype=subtype
 		)
 	
