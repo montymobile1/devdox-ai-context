@@ -9,6 +9,10 @@ from app.infrastructure.mailing_service.models import OutgoingTemplatedHTMLEmail
 
 class EmailDispatchOptions(BaseModel):
     """Shared knobs for all email services."""
+    
+    """If True, render templates and return a preview payload instead of sending.
+       Rendering follows the exact same code path as real sends and will raise on
+       template/config errors (so dev/test behaves like prod, minus SMTP)."""
     dry_run: bool = False
     redirect_all_to: list[EmailStr] = Field(default_factory=list)
     always_bcc: list[EmailStr] = Field(default_factory=list)
@@ -138,20 +142,15 @@ class EmailDispatcher:
         )
         
         if self.options.dry_run:
-            html_preview = None
-            text_preview = None
-            render_error = None
-            try:
-                # Ask the client to render the templates (no SMTP)
-                rendered = await self.client.render_templates_for_preview(
-                    html_template=template,
-                    context=context,
-                    plain_template=text_fallback_template,
-                )
-                html_preview = rendered.get("html")
-                text_preview = rendered.get("text")
-            except Exception as e:
-                render_error = f"{type(e).__name__}: {e}"
+            # Ask the client to render the templates (no SMTP)
+            rendered = await self.client.render_templates_for_preview(
+                html_template=template,
+                context=context,
+                plain_template=text_fallback_template,
+            )
+            
+            html_preview = rendered.get("html")
+            text_preview = rendered.get("text")
             
             return {
                 "subject": email_model.subject,
@@ -163,7 +162,6 @@ class EmailDispatcher:
                 "context": context,
                 "html_preview": html_preview,      # <- paste this into a browser
                 "text_preview": text_preview,      # <- plain text version
-                "render_error": render_error,      # <- if rendering failed
             }
         
         await self.client.send_templated_html_email(email_model)

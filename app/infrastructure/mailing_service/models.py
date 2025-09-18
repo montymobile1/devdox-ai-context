@@ -7,9 +7,9 @@ NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 class EmailEnvelope(BaseModel):
 	subject: NonBlankStr = Field(default=..., description="The email’s title (what shows in the inbox). Keep it short and human (avoid ALL CAPS/spammy words).")
 	recipients: list[EmailStr] = Field(default=..., min_length=1, description="A list of “To” addresses (the main people getting the email).")
-	cc: Optional[list[EmailStr]] = Field(default_factory=list, description="Carbon copy recipients")
-	bcc: Optional[list[EmailStr]] = Field(default_factory=list,  description="Blind carbon copy recipients")
-	reply_to: Optional[list[EmailStr]] = Field(default_factory=list, description="If someone clicks “Reply”, messages go here instead of the “From” address. Useful when sending from a no-reply address but wanting replies to support@…")
+	cc: list[EmailStr] = Field(default_factory=list, description="Carbon copy recipients")
+	bcc: list[EmailStr] = Field(default_factory=list,  description="Blind carbon copy recipients")
+	reply_to: list[EmailStr] = Field(default_factory=list, description="If someone clicks “Reply”, messages go here instead of the “From” address. Useful when sending from a no-reply address but wanting replies to support@…")
 	headers: Optional[Mapping[str, NonBlankStr]] = Field(default=None, description="Custom metadata for filters/automation (machines more than humans). (e.g., 'X-Campaign-ID': 'llm-summary-2025-08'")
 
 

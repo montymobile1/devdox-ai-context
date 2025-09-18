@@ -27,8 +27,8 @@ class MailSettings(BaseSettings):
         ...,
         description="SMTP username. Some providers require it separately, others just use MAIL_FROM.",
     )
-    MAIL_PASSWORD: str | None = Field(
-        default=None,
+    MAIL_PASSWORD: str = Field(
+        ...,
         description="Password or app-specific key for authenticating to the SMTP server.",
     )
     MAIL_FROM: EmailStr = Field(
@@ -73,15 +73,42 @@ class MailSettings(BaseSettings):
         description="Debug output level for SMTP interactions. 0 = silent, 1+ = verbose.",
     )
     
-    MAIL_TEMPLATE_FOLDER: str | Path | None = Field(
+    MAIL_TEMPLATE_FOLDER: Path | None = Field(
         default=CONFIG_DIR.parent / "templates" / "email",
         description="Directory for Jinja2 templates (optional)."
     )
     
+    @field_validator("MAIL_TEMPLATE_FOLDER", mode="before")
+    @classmethod
+    def _empty_to_none(cls, v):
+        """Treat empty/whitespace (or the strings 'none'/'null') as None."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            if not s or s.lower() in {"none", "null"}:
+                return None
+        return v
+
+    @field_validator("MAIL_TEMPLATE_FOLDER", mode="after")
+    @classmethod
+    def _normalize_path(cls, v: Path | None) -> Path | None:
+        """Expand ~ and normalize absolute path if provided."""
+        return v.expanduser().resolve() if isinstance(v, Path) else v
+
     @model_validator(mode="after")
     def _validate_tls_mode(self):
         if self.MAIL_STARTTLS and self.MAIL_SSL_TLS:
             raise ValueError("Set only one of MAIL_STARTTLS or MAIL_SSL_TLS, not both.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_template_dir(self):
+        """Only validate when a folder is actually configured."""
+        if self.MAIL_TEMPLATE_FOLDER and not self.MAIL_TEMPLATE_FOLDER.is_dir():
+            raise ValueError(
+                f"MAIL_TEMPLATE_FOLDER does not exist: {self.MAIL_TEMPLATE_FOLDER}"
+            )
         return self
     
     model_config = SettingsConfigDict(
