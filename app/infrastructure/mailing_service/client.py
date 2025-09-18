@@ -24,12 +24,12 @@ class IMailClient(Protocol):
 	@abstractmethod
 	async def render_templates_for_preview(
 			self,
-			*,
 			html_template: str,
 			context: dict[str, Any] | None,
 			plain_template: Optional[str] = None,
 	) -> dict[str, Optional[str]]: ...
-	
+
+
 class FastAPIMailClient(IMailClient):
 	
 	def __init__(self, settings: MailSettings):
@@ -46,7 +46,7 @@ class FastAPIMailClient(IMailClient):
 			VALIDATE_CERTS=settings.MAIL_VALIDATE_CERTS,
 			SUPPRESS_SEND=int(settings.MAIL_SUPPRESS_SEND),
 			MAIL_DEBUG=settings.MAIL_DEBUG,
-			TEMPLATE_FOLDER=settings.MAIL_TEMPLATE_FOLDER
+			TEMPLATE_FOLDER=settings.MAIL_TEMPLATE_FOLDER if settings.MAIL_TEMPLATE_FOLDER else None
 		)
 		self._fm = FastMail(self.conf)
 	
@@ -66,23 +66,6 @@ class FastAPIMailClient(IMailClient):
 			headers=headers,
 			subtype=subtype
 		)
-	
-	async def send_html_email(self, message: OutgoingHtmlEmail) -> None:
-		message_schema = self._generate_message_schema(envelope=message, subtype=MessageType.html)
-		message_schema.body = message.html_body
-		
-		if message.text_fallback:
-			message_schema.alternative_body = message.text_fallback
-			message_schema.multipart_subtype= MultipartSubtypeEnum.alternative
-		
-		await self._fm.send_message(message_schema)
-	
-	async def send_text_email(self, message: OutgoingTextEmail) -> None:
-		
-		message_schema = self._generate_message_schema(envelope=message, subtype=MessageType.plain)
-		message_schema.body=message.text_body
-
-		await self._fm.send_message(message_schema)
 	
 	async def _render_text_template(
 			self, template_name: str, context: dict[str, Any] | None
@@ -108,6 +91,24 @@ class FastAPIMailClient(IMailClient):
 	def _ensure_templates_enabled(self) -> None:
 		if not self.conf.TEMPLATE_FOLDER:
 			raise RuntimeError("TEMPLATE_FOLDER is not configured; cannot render templates.")
+
+	
+	async def send_html_email(self, message: OutgoingHtmlEmail) -> None:
+		message_schema = self._generate_message_schema(envelope=message, subtype=MessageType.html)
+		message_schema.body = message.html_body
+		
+		if message.text_fallback:
+			message_schema.alternative_body = message.text_fallback
+			message_schema.multipart_subtype= MultipartSubtypeEnum.alternative
+		
+		await self._fm.send_message(message_schema)
+	
+	async def send_text_email(self, message: OutgoingTextEmail) -> None:
+		
+		message_schema = self._generate_message_schema(envelope=message, subtype=MessageType.plain)
+		message_schema.body=message.text_body
+
+		await self._fm.send_message(message_schema)
 	
 	async def send_templated_html_email(self, message: OutgoingTemplatedHTMLEmail) -> None:
 		self._ensure_templates_enabled()
@@ -122,7 +123,6 @@ class FastAPIMailClient(IMailClient):
 			
 			message_schema.alternative_body=text_fallback
 			message_schema.multipart_subtype=MultipartSubtypeEnum.alternative
-		
 		
 		await self._fm.send_message(message_schema, template_name=message.html_template)
 	
@@ -157,7 +157,6 @@ class FastAPIMailClient(IMailClient):
 	
 	async def render_templates_for_preview(
 			self,
-			*,
 			html_template: str,
 			context: dict[str, Any] | None,
 			plain_template: Optional[str] = None,

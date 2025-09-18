@@ -33,7 +33,7 @@ class FakeMailClient(IMailClient):
         self.sent_templated_text.append(message)
 
     async def render_templates_for_preview(
-        self, *, html_template: str, context: dict[str, Any] | None, plain_template: Optional[str] = None
+        self, html_template: str, context: dict[str, Any] | None, plain_template: Optional[str] = None
     ) -> dict[str, Optional[str]]:
         preview = {
             "html": f"<html>fake-render {html_template} ctx={context}</html>",
@@ -81,6 +81,6 @@ class StubMailClient(IMailClient):
         return await self._maybe("send_templated_plain_email", message)
 
     async def render_templates_for_preview(
-        self, *, html_template: str, context: dict[str, Any] | None, plain_template: Optional[str] = None
+        self, html_template: str, context: dict[str, Any] | None, plain_template: Optional[str] = None
     ) -> dict[str, Optional[str]]:
         return await self._maybe("render_templates_for_preview", html_template, context, plain_template)
