@@ -44,6 +44,8 @@ class FastAPIMailClient(IMailClient):
 		
 		self.send_timeout_seconds = settings.MAIL_SEND_TIMEOUT
 		
+		self.minimum_timeout_seconds = settings.MAIL_SEND_TIMEOUT_MIN
+		
 		self.conf = ConnectionConfig(
 			MAIL_USERNAME=settings.MAIL_USERNAME,
 			MAIL_PASSWORD=settings.MAIL_PASSWORD,
@@ -87,9 +89,12 @@ class FastAPIMailClient(IMailClient):
 	async def _send_fast_mail(self, message: MessageSchema, template_name: str = None, timeout: int|None = None) -> None:
 		try:
 			# timeout guard so sends don’t hang forever
+			
+			effective_timeout = timeout if (timeout is not None and timeout > self.minimum_timeout_seconds) else self.send_timeout_seconds
+			
 			await asyncio.wait_for(
 				self._fm.send_message(message=message, template_name=template_name),
-				timeout=timeout if timeout else self.send_timeout_seconds,
+				timeout=effective_timeout,
 			)
 			return None
 		except asyncio.TimeoutError as e:

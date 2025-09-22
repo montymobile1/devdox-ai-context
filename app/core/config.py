@@ -22,7 +22,12 @@ class LogLevel(str, Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
 
+
 class MailSettings(BaseSettings):
+    
+    MAIL_SEND_TIMEOUT_MIN: ClassVar[int] = 20
+    
+    
     MAIL_USERNAME: str = Field(
         ...,
         description="SMTP username. Some providers require it separately, others just use MAIL_FROM.",
@@ -73,9 +78,11 @@ class MailSettings(BaseSettings):
         description="Debug output level for SMTP interactions. 0 = silent, 1+ = verbose.",
     )
     
+    
+    
     MAIL_SEND_TIMEOUT: int | None = Field(
         default=60,
-        ge=20,
+        ge=MAIL_SEND_TIMEOUT_MIN,
         description=(
             "Max seconds to wait for the SMTP send to complete. If omitted, defaults to 60s. "
             "Set to None to disable the timeout entirely (use with caution). "
