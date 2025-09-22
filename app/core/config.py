@@ -1,9 +1,12 @@
+from pathlib import Path
+
 from pydantic import Field, field_validator
 from typing import Any, Dict, ClassVar, Optional, List
 from enum import Enum
 
 from pydantic_settings import BaseSettings
 
+CONFIG_DIR = Path(__file__).parent
 
 search_path = "vault,public"
 
@@ -94,9 +97,9 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
-
+    
     class Config:
-        env_file = "app/.env"
+        env_file = CONFIG_DIR.parent / ".env"
         case_sensitive = True
         extra = "ignore"
 
