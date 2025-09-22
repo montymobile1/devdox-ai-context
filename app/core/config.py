@@ -4,7 +4,7 @@ from pydantic import Field, field_validator
 from typing import Any, Dict, ClassVar, Optional, List
 from enum import Enum
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONFIG_DIR = Path(__file__).parent
 
@@ -98,10 +98,12 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
     
-    class Config:
-        env_file = CONFIG_DIR.parent / ".env"
-        case_sensitive = True
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=CONFIG_DIR.parent / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 
 def get_database_config() -> Dict[str, Any]:
