@@ -87,9 +87,10 @@ class FastAPIMailClient(IMailClient):
 			raise MailConfigError(exception_constants.TEMPLATE_FOLDER_NOT_CONFIGURED)
 	
 	async def _send_fast_mail(self, message: MessageSchema, template_name: str = None, timeout: int|None = None) -> None:
+		effective_timeout = None
+		
 		try:
 			# timeout guard so sends don’t hang forever
-			
 			effective_timeout = timeout if (timeout is not None and timeout > self.minimum_timeout_seconds) else self.send_timeout_seconds
 			
 			await asyncio.wait_for(
@@ -98,9 +99,8 @@ class FastAPIMailClient(IMailClient):
 			)
 			return None
 		except asyncio.TimeoutError as e:
-			secs = self.send_timeout_seconds
 			raise MailSendError(
-				f"SMTP send timed out after {secs}s "
+				f"SMTP send timed out after {effective_timeout}s "
 				f"(subject='{message.subject}', server='{self.conf.MAIL_SERVER}:{self.conf.MAIL_PORT}')"
 			) from e
 		except Exception as e:
