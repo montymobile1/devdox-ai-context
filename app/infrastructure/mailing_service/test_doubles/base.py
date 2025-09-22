@@ -33,35 +33,6 @@ class ExceptionPlanMixin:
         if exc:
             raise exc
 
-
-class StubPlanMixin(CallSpyMixin, ExceptionPlanMixin):
-    """
-    For stubs: predefine outputs per method.
-    set_output(method, value_or_callable)
-    """
-
-    def __init__(self) -> None:
-        CallSpyMixin.__init__(self)
-        ExceptionPlanMixin.__init__(self)
-        self._outputs: Dict[str, Any] = {}
-
-    def set_output(self, method: Callable, output: Any) -> None:
-        self._outputs[method.__name__] = output
-
-    async def _stub(self, method: Callable, /, *args, **kwargs):
-        mname = self._touch(method, *args, **kwargs)
-        self._maybe_raise(mname)
-        out = self._outputs[mname]
-
-        # handle both sync/async callables safely:
-        if callable(out):
-            result = out(*args, **kwargs)
-            if inspect.isawaitable(result):
-                return await result
-            return result
-        return out
-
-
 class FakeBase(CallSpyMixin, ExceptionPlanMixin):
     """
     For fakes: just call tracking + exceptions.
