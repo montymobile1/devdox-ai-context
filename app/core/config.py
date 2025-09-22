@@ -73,15 +73,60 @@ class MailSettings(BaseSettings):
         description="Debug output level for SMTP interactions. 0 = silent, 1+ = verbose.",
     )
     
-    MAIL_TEMPLATE_FOLDER: Path | None = Field(
-        default=CONFIG_DIR.parent / "templates" / "email",
-        description="Directory for Jinja2 templates (optional)."
+    MAIL_SEND_TIMEOUT: int | None = Field(
+        default=60,
+        ge=20,
+        description=(
+            "Max seconds to wait for the SMTP send to complete. If omitted, defaults to 60s. "
+            "Set to None to disable the timeout entirely (use with caution). "
+            "Values below 20s are rejected to avoid flaky timeouts under normal network operation."
+        ),
     )
     
-    @field_validator("MAIL_TEMPLATE_FOLDER", mode="before")
+    MAIL_TEMPLATES_PARENT_DIR: Path | None = Field(
+        default=None,
+        description=(
+            "Absolute or relative path to a *parent* directory that contains an 'email/' "
+            "subfolder with Jinja templates. The effective template folder passed to the mail "
+            "engine is <MAIL_TEMPLATES_PARENT_DIR>/email. If the value is empty, 'none', or "
+            "'null', template rendering is disabled and only raw bodies may be used. The path "
+            "is expanded (supports ~) and resolved at load time; when set, the '<parent>/email' "
+            "directory must exist or settings validation will fail."
+        )
+    )
+    
+    # ---- Derived convenience properties ----
+    
+    @property
+    def templates_enabled(self) -> bool:
+        return self.MAIL_TEMPLATES_PARENT_DIR is not None
+
+    @property
+    def templates_dir(self) -> Path | None:
+        
+        if not self.templates_enabled:
+            return None
+        
+        return (self.MAIL_TEMPLATES_PARENT_DIR / "email").expanduser().resolve()
+    
+    # ---- Normalizers & validation ----
+    
+    @field_validator("MAIL_SEND_TIMEOUT", mode="before")
     @classmethod
-    def _empty_to_none(cls, v):
-        """Treat empty/whitespace (or the strings 'none'/'null') as None."""
+    def _noneify_timeout(cls, v:str) -> str | None:
+        # Allow '', 'none', 'null' (case-insensitive) to disable the timeout via env
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in {"", "none", "null"}:
+                return None
+        return v
+    
+    @field_validator("MAIL_TEMPLATES_PARENT_DIR", mode="before")
+    @classmethod
+    def _noneify_mail_template_parent_dir(cls, v:str) -> str | None:
+        # Treat "", "none", "null" as disabling templates
         if v is None:
             return None
         if isinstance(v, str):
@@ -89,28 +134,26 @@ class MailSettings(BaseSettings):
             if not s or s.lower() in {"none", "null"}:
                 return None
         return v
-
-    @field_validator("MAIL_TEMPLATE_FOLDER", mode="after")
+    
+    @field_validator("MAIL_TEMPLATES_PARENT_DIR", mode="after")
     @classmethod
-    def _normalize_path(cls, v: Path | None) -> Path | None:
-        """Expand ~ and normalize absolute path if provided."""
+    def _normalize_parent(cls, v: Path | None) -> Path | None:
         return v.expanduser().resolve() if isinstance(v, Path) else v
-
+    
     @model_validator(mode="after")
-    def _validate_tls_mode(self):
+    def _validate(self) -> "MailSettings":
+        # TLS mode sanity
         if self.MAIL_STARTTLS and self.MAIL_SSL_TLS:
             raise ValueError("Set only one of MAIL_STARTTLS or MAIL_SSL_TLS, not both.")
-        return self
 
-    @model_validator(mode="after")
-    def _validate_template_dir(self):
-        """Only validate when a folder is actually configured."""
-        if self.MAIL_TEMPLATE_FOLDER and not self.MAIL_TEMPLATE_FOLDER.is_dir():
-            raise ValueError(
-                f"MAIL_TEMPLATE_FOLDER does not exist: {self.MAIL_TEMPLATE_FOLDER}"
-            )
+        # If templates are enabled, require <parent>/email to exist
+        if self.templates_enabled:
+            td = self.templates_dir
+            if not (td and td.is_dir()):
+                raise ValueError(f"Templates directory does not exist: {td}")
         return self
     
+    # ---- Configuration manager ----
     model_config = SettingsConfigDict(
         env_file=CONFIG_DIR.parent / ".env",
         env_file_encoding="utf-8",
