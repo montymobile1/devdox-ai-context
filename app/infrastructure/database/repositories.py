@@ -138,7 +138,7 @@ class ContextRepositoryHelper:
                 total_embeddings=total_embeddings
             )
             
-            if not context or context<= 0:
+            if not context or context <= 0:
                 raise ContextNotFoundError(user_message=exception_constants.CONTEXT_NOT_FOUND, internal_context={"context_id": context_id})
             
             logger.info(f"Updated context {context_id} status to {status}")
