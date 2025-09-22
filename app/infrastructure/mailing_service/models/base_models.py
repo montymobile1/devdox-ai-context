@@ -27,7 +27,7 @@ class EmailEnvelope(BaseModel):
 	cc: list[EmailStr] = Field(default_factory=list, description="Carbon copy recipients")
 	bcc: list[EmailStr] = Field(default_factory=list,  description="Blind carbon copy recipients")
 	reply_to: list[EmailStr] = Field(default_factory=list, description="If someone clicks “Reply”, messages go here instead of the “From” address. Useful when sending from a no-reply address but wanting replies to support@…")
-	headers: Optional[Mapping[str, NonBlankStr]] = Field(default=None, description="Custom metadata for filters/automation (machines more than humans). (e.g., 'X-Campaign-ID': 'llm-summary-2025-08'")
+	headers: Optional[Mapping[str, NonBlankStr]] = Field(default=None, description="Custom metadata for filters/automation (machines more than humans). (e.g., 'X-Campaign-ID': 'llm-summary-2025-08')")
 	
 	# De-dupe each list independently
 	@field_validator("recipients", "cc", "bcc", "reply_to", mode="after")
