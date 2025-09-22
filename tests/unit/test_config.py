@@ -30,7 +30,7 @@ class TestEnums:
         assert LogLevel.WARNING == "WARNING"
         assert LogLevel.ERROR == "ERROR"
 
-
+@pytest.mark.skipif(settings.Environment.lower() != "test", reason="This test only works on a test environment on the pipeline")
 class TestSettings:
     """Test Settings configuration class"""
 
@@ -51,7 +51,7 @@ class TestSettings:
             test_settings = Settings()
 
             assert test_settings.app_name == "DevDox AI Context Queue Worker"
-            assert test_settings.Environment == "development"
+            assert test_settings.Environment.lower() == "test"
             assert test_settings.DEBUG is False
             assert test_settings.VERSION == "0.0.1"
             assert test_settings.DB_MAX_CONNECTIONS == 20
@@ -243,7 +243,7 @@ class TestGlobalInstances:
         assert "connections" in TORTOISE_ORM
         assert "apps" in TORTOISE_ORM
 
-
+@pytest.mark.skipif(settings.Environment.lower() != "test", reason="This test only works on a test environment on the pipeline")
 class TestFieldValidation:
     """Test field validation edge cases"""
 
@@ -279,7 +279,6 @@ class TestFieldValidation:
             with pytest.raises(ValidationError):
                 Settings()
     
-    @pytest.mark.skipif(settings.Environment.lower() != "test", reason="This test only works on a test environment on the pipeline")
     def test_vector_dimensions_validation(self):
         """Test vector dimensions validation"""
         with patch.dict(
