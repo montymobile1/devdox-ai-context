@@ -1,3 +1,4 @@
+import datetime
 import logging
 from typing import List, Optional
 
@@ -79,34 +80,22 @@ class RepoRepositoryHelper:
         try:
             return await self._repo.find_by_repo_id(repo_id)
         except Exception:
-            logger.exception(exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(repo_id=repo_id))
+            logger.exception(exception_constants.ERROR_REPO_NOT_FOUND_BY_REPO_ID.format(repo_id=repo_id))
             return None
-
+    
+    async def find_repo_by_id(self, id: str) -> Optional[RepoResponseDTO]:
+        try:
+            return await self._repo.find_by_id(id)
+        except Exception:
+            logger.exception(exception_constants.ERROR_REPO_NOT_FOUND_BY_ID.format(id=id))
+            return None
+    
     async def find_by_user_and_url(self, user_id: str, html_url: str) -> Optional[RepoResponseDTO]:
         try:
             return await self._repo.find_by_user_id_and_html_url(user_id=user_id, html_url=html_url)
         except Exception:
             logger.exception(exception_constants.ERROR_FINDING_REPO.format(user_id=user_id, html_url=html_url))
             return None
-
-    async def update_processing_status(
-        self, repo_id: str, status: str, **kwargs
-    ) -> None:
-        try:
-            repo = await self._repo.update_status_by_repo_id(
-                repo_id=repo_id,
-                status=status,
-                **kwargs)
-            
-            if not repo or repo <=0:
-                raise RepoNotFoundError(user_message=exception_constants.REPOSITORY_NOT_FOUND, internal_context={"repo_id": repo_id})
-            
-            logger.info(f"Updated repo {repo_id} status to {status}")
-        except RepoNotFoundError:
-            raise
-        except Exception as e:
-            logger.exception("Error updating repo status")
-            raise DatabaseError(user_message=exception_constants.DB_REPO_STATUS_UPDATE_FAILED) from e
 
 class GitLabelRepositoryHelper:
     
@@ -137,10 +126,18 @@ class ContextRepositoryHelper:
             return context
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_CONTEXT_REPO_CREATE_FAILED) from e
-
-    async def update_status(self, context_id: str, status: str, **kwargs) -> None:
+    
+    async def update_status(self, context_id: str, status: str, processing_end_time: datetime.datetime, total_files: int, total_chunks: int, total_embeddings: int) -> None:
         try:
-            context = await self._repo.update_status_by_repo_id(repo_id=context_id, status=status, **kwargs)
+            context = await self._repo.update_analysis_metadata_by_id(
+                id=context_id,
+                status=status,
+                processing_end_time=processing_end_time,
+                total_files=total_files,
+                total_chunks=total_chunks,
+                total_embeddings=total_embeddings
+            )
+            
             if not context or context<= 0:
                 raise ContextNotFoundError(user_message=exception_constants.CONTEXT_NOT_FOUND, internal_context={"context_id": context_id})
             
@@ -149,7 +146,8 @@ class ContextRepositoryHelper:
             raise
         except Exception as e:
             raise DatabaseError(user_message=exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED) from e
-
+    
+    
     async def update_repo_system_reference(self, context_id: str, repo_system_reference:str) -> None:
         try:
             context = await self._repo.update_repo_system_reference_by_id(id=context_id, repo_system_reference=repo_system_reference)
