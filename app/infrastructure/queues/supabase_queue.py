@@ -404,7 +404,7 @@ class SupabaseQueue:
 
                 # Delete current message and re-queue with delay
                 await self.queue.delete(queue_name, msg_id)
-                await self.queue.send_delay(queue_name, retry_job_data, retry_delay)
+                _ = await self.queue.send(queue=queue_name, message=retry_job_data, delay=retry_delay)
 
                 logger.info(
                     f"Job {job_data.get('id')} scheduled for retry {attempts}/{max_attempts} in {retry_delay}s"
