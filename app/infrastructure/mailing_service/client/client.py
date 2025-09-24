@@ -88,7 +88,7 @@ class FastAPIMailClient(IMailClient):
 	
 	async def _send_fast_mail(self, message: MessageSchema, template_name: str = None, timeout: int|None = None) -> None:
 		effective_timeout = None
-		
+		print("Sending email ..... ")
 		try:
 			# timeout guard so sends don’t hang forever
 			effective_timeout = timeout if (timeout is not None and timeout > self.minimum_timeout_seconds) else self.send_timeout_seconds
