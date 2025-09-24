@@ -78,7 +78,12 @@ class MailSettings(BaseSettings):
         description="Debug output level for SMTP interactions. 0 = silent, 1+ = verbose.",
     )
     
-    
+    MAIL_AUDIT_RECIPIENTS: List[EmailStr] = Field(
+        default_factory=list,
+        description=(
+            "Addresses to receive audit/ops/compliance notifications (can be internal or external). "
+        ),
+    )
     
     MAIL_SEND_TIMEOUT: int | None = Field(
         default=60,
