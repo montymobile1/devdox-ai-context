@@ -1,11 +1,16 @@
-from abc import abstractmethod
-from typing import Any, List, Optional, Protocol
+from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
 from app.infrastructure.mailing_service.client.client import IMailClient
 from app.infrastructure.mailing_service.models.base_models import dedupe, normalize_email, OutgoingTemplatedHTMLEmail
 from app.infrastructure.mailing_service.models.base_preview_models import PreviewOutgoingTemplatedHTMLEmail
+from app.infrastructure.mailing_service.service.template_resolver import Template, TemplateResolver
+from .interfaces import IEmailDispatcher
+from app.infrastructure.mailing_service.exception import exception_constants
+from app.infrastructure.mailing_service.exception.mail_exceptions import MailTemplateError
+from app.infrastructure.mailing_service.models.context_shapes import BaseContextShape
+
 
 class RecipientSet(BaseModel):
     to: list[EmailStr]
@@ -82,28 +87,15 @@ class EmailDispatchOptions(BaseModel):
             return subject
         return f"{p} {subject}"
 
-class IEmailDispatcher(Protocol):
-    @abstractmethod
-    async def send_templated_html(
-            self,
-            subject: str,
-            to: List[EmailStr],
-            template: str,
-            context: dict[str, Any],
-            text_fallback_template: Optional[str] = None,
-            cc: Optional[List[EmailStr]] = None,
-            bcc: Optional[List[EmailStr]] = None,
-            reply_to: Optional[List[EmailStr]] = None,
-            headers: Optional[dict[str, str]] = None,
-    ) -> PreviewOutgoingTemplatedHTMLEmail | None: ...
-
 
 class EmailDispatcher(IEmailDispatcher):
 
     def __init__(self, client: IMailClient, options: Optional[EmailDispatchOptions] = None):
-        self.client = client
-        self.options = options or EmailDispatchOptions()
-    
+        self._client = client
+        self._options = options or EmailDispatchOptions()
+        self._template_resolver = TemplateResolver()
+        
+        
     def _with_common_headers(self, headers: Optional[dict[str, str]]) -> dict[str, str]:
         """
           Merge caller-provided email headers with safe, organization-wide defaults.
@@ -138,31 +130,40 @@ class EmailDispatcher(IEmailDispatcher):
     
     async def send_templated_html(
             self,
-            subject: str,
             to: List[EmailStr],
-            template: str,
-            context: dict[str, Any],
-            text_fallback_template: Optional[str] = None,
+            template: Template,
+            context: Optional[BaseContextShape] = None,
+            subject: Optional[str] = None,
             cc: Optional[List[EmailStr]] = None,
             bcc: Optional[List[EmailStr]] = None,
             reply_to: Optional[List[EmailStr]] = None,
             headers: Optional[dict[str, str]] = None,
     ) -> PreviewOutgoingTemplatedHTMLEmail | None:
-        recipients = self.options.rewrite_recipients(to, cc or [], bcc or [])
-        subject = self.options.prefix_subject(subject)
+        
+        print("Dispatcher:::Sending email .... ")
+        
+        recipients = self._options.rewrite_recipients(to, cc or [], bcc or [])
+        
         headers = self._with_common_headers(headers)
         
+        template_meta = self._template_resolver.get_template_meta_by_name(template)
+        transformed_subject = self._options.prefix_subject(subject if subject else template_meta.subject)
+        
+        if not context and template_meta.context_shape or (template_meta.context_shape and type(context) != template_meta.context_shape):
+            raise MailTemplateError(exception_constants.INVALID_TEMPLATE_CONTEXT)
+        
         email_model = OutgoingTemplatedHTMLEmail(
-            subject=subject,
             recipients=recipients.to,
             cc=recipients.cc,
             bcc=recipients.bcc,
-            reply_to=list(reply_to or []),
+            reply_to=reply_to or [],
             headers=headers,
-            template_context=context,
-            html_template=template,
-            plain_template_fallback=text_fallback_template,
+            subject=transformed_subject,
+            html_template=template_meta.html_template,
+            plain_template_fallback=template_meta.plain_template,
         )
         
-        return await self.client.send_templated_html_email(email_model)
-    
+        if context and template_meta.context_shape:
+            email_model.template_context = context.model_dump()
+        
+        return await self._client.send_templated_html_email(email_model)

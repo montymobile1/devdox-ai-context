@@ -1,0 +1,19 @@
+FAILURE — {{ job_type }}
+{% if error_summary %}{{ error_summary }}{% endif %}
+{% if error_type %}{{ error_type }}{% endif %}
+
+Repository: {% if repository_html_url %}{{ repository_html_url }}{% else %}-{% endif %} • repo_id {{ repo_id }}
+Branch: {% if repository_branch %}{{ repository_branch }}{% else %}-{% endif %}
+User: {% if user_email %}{{ user_email }}{% else %}-{% endif %} • user_id {{ user_id }}
+Context ID: {% if job_context_id %}{{ job_context_id }}{% else %}-{% endif %}
+
+Queued at:   {% if job_queued_at %}{{ job_queued_at }}{% else %}-{% endif %}
+Started at:  {% if job_started_at %}{{ job_started_at }}{% else %}-{% endif %}
+Finished at: {% if job_finished_at %}{{ job_finished_at }}{% else %}-{% endif %}
+Settled at:  {% if job_settled_at %}{{ job_settled_at }}{% else %}-{% endif %} (includes post-operation)
+
+Run (core):            {% if run_ms %}{{ run_ms }} ms{% else %}-{% endif %}
+Total (queue→settled): {% if total_ms %}{{ total_ms }} ms{% else %}-{% endif %}
+
+--- Stack trace{% if error_stacktrace_truncated %} [TRUNCATED]{% endif %} ---
+{% if error_stacktrace %}{{ error_stacktrace }}{% else %}-{% endif %}
