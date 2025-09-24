@@ -1,8 +1,10 @@
+from .client.client import FastAPIMailClient
+from .models.context_shapes import ProjectAnalysisFailure
 from .service.email_service import (
     EmailDispatcher,
     EmailDispatchOptions,
-    IEmailDispatcher,
 )
+from .service.interfaces import IEmailDispatcher
 
 from .exception import mail_exceptions
 from .exception import exception_constants
@@ -23,16 +25,23 @@ from .models.base_preview_models import (
     PreviewOutgoingTemplatedTextEmail,
     PreviewOutgoingTextEmail,
 )
+from .service.template_resolver import Template, TemplateResolver
 
 from .test_doubles.client import SpyMailClient
 from .test_doubles.email_service import SpyEmailDispatcher
 
 
 __all__ = [
+    
+    # client/
+    "FastAPIMailClient",
+    
     # service/
+    "IEmailDispatcher",
     "EmailDispatcher",
     "EmailDispatchOptions",
-    "IEmailDispatcher",
+    "Template",
+    "TemplateResolver",
     
     # exception/
     "mail_exceptions",
@@ -51,6 +60,7 @@ __all__ = [
     "PreviewOutgoingTemplatedHTMLEmail",
     "PreviewOutgoingTemplatedTextEmail",
     "PreviewOutgoingTextEmail",
+    "ProjectAnalysisFailure",
     
     # test_doubles/
     "SpyMailClient",
