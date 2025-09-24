@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, computed_field, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-from infrastructure.job_tracer.trace_formatter import build_error_chain_for_template, make_plain_stacktrace
+from app.infrastructure.job_tracer.trace_formatter import build_error_chain_for_template, make_plain_stacktrace
 
 
 class JobTraceMetaData(BaseModel):
