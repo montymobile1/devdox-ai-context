@@ -9,6 +9,7 @@ from app.core.container import Container
 from app.handlers.message_handler import MessageHandler
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.core.config import settings
+from app.schemas.job_trace_metadata import JobTraceMetaData
 
 
 class QueueWorker:
@@ -69,7 +70,10 @@ class QueueWorker:
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
                 if job:
                     consecutive_failures = 0  # Reset failure counter
-                    await self._process_job(queue_name, job)
+                    
+                    job_tracer = JobTraceMetaData()
+                    
+                    await self._process_job(queue_name, job, job_tracer)
                 else:
                     # No jobs available, wait before checking again
                     await asyncio.sleep(settings.QUEUE_POLLING_INTERVAL_SECONDS or 5)
@@ -85,22 +89,30 @@ class QueueWorker:
                 backoff_time = min(60, 2**consecutive_failures)
                 await asyncio.sleep(backoff_time)
 
-    async def _process_job(self, queue_name: str, job: Dict[str, Any]):
+    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracer:JobTraceMetaData):
         """Process a single job with comprehensive error handling and monitoring"""
         job_id = job.get("id", "unknown")
         job_type = job.get("job_type", "unknown")
         payload = job.get("payload", {})
-
+        
+        job_tracer.add_metadata(
+            repo_id=payload.get("repo_id"),
+            user_id=payload.get("user_id"),
+            job_context_id=payload.get("context_id"),
+            job_type=job_type,
+            repository_branch=payload.get("branch")
+        )
+        
         _ = time.time()
         self.stats["current_job"] = job_id
 
         try:
             # Route job to appropriate handler based on queue and type
             if queue_name == "processing" and job_type in ["analyze", "process"]:
-                await self.message_handler.handle_processing_message(payload)
+                await self.message_handler.handle_processing_message(payload, job_tracer)
 
             # Mark job as completed
-            await self.queue_service.complete_job(job)
+            await self.queue_service.complete_job(job, job_tracer=job_tracer)
 
             # Update statistics
             self.stats["jobs_processed"] += 1
@@ -113,7 +125,7 @@ class QueueWorker:
             self.stats["jobs_failed"] += 1
 
             # Mark job as failed with error details
-            await self.queue_service.fail_job(job_id, str(e))
+            await self.queue_service.fail_job(job, job_tracer, e)
 
         finally:
             self.stats["current_job"] = None
