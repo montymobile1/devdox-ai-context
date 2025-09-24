@@ -1,8 +1,11 @@
 import traceback
 from datetime import datetime, timedelta, UTC
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, computed_field, ConfigDict, Field, field_serializer, field_validator, model_validator
+
+from infrastructure.job_tracer.trace_formatter import build_error_chain_for_template, make_plain_stacktrace
+
 
 class JobTraceMetaData(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
@@ -37,6 +40,8 @@ class JobTraceMetaData(BaseModel):
         init=False, default=None,
         description="Short human-readable message or log-friendly summary"
     )
+    
+    error_chain: Optional[List[Dict[str, Any]]] = Field(init=False, default=None)
     
     repo_id: str = Field(init=False, default=None)
     user_id: str = Field(init=False, default=None)
@@ -130,19 +135,28 @@ class JobTraceMetaData(BaseModel):
         	:param max_chars: lets you cap stored stack size (useful if you’re persisting to DB/logs with limits).
         """
         
-        if exc:
-            self.error_type = f"{exc.__class__.__module__}.{exc.__class__.__name__}"
-            te = traceback.TracebackException.from_exception(exc, capture_locals=include_locals)
-            stack = "".join(te.format(chain=True))
-            truncated = False
-            if max_chars is not None and len(stack) > max_chars:
-                stack = stack[: max_chars - 11] + " [TRUNCATED]"
-                truncated = True
-            self.error_stacktrace = stack
-            self.error_stacktrace_truncated = truncated
+        derived_error_summary = None
         
-        # Prefer caller-provided summary, else fallback to type
-        self.error_summary = summary if summary is not None else self.error_type
+        if exc:
+            
+            self.error_chain = build_error_chain_for_template(exc, include_location=True, msg_limit=200)
+            
+            self.error_type = " → ".join(n["func"] for n in self.error_chain) if self.error_chain else f"{exc.__class__.__module__}.{exc.__class__.__name__}"
+            
+            outer = self.error_chain[0] if self.error_chain else None
+            derived_error_summary = f"{outer['type']}: {outer['msg']}" if outer else ""
+            
+            self.error_stacktrace, self.error_stacktrace_truncated = make_plain_stacktrace(exc, max_chars=14000)
+        
+        if summary:
+            self.error_summary = summary
+        elif derived_error_summary:
+            self.error_summary = derived_error_summary
+        elif self.error_type:
+            self.error_summary = self.error_type
+        else:
+            self.error_summary = ""
+        
         return self
 
     def clear_error(self) -> "JobTraceMetaData":

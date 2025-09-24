@@ -7,7 +7,7 @@ import httpx
 from app.services.auth_service import AuthService
 from app.services.processing_service import ProcessingService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
-from schemas.job_trace_metadata import JobTraceMetaData
+from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class MessageHandler:
             result = await self.processing_service.process_repository(job_payload, job_tracer)
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
-
+                
                 # Consume tokens based on actual usage
                 if result.chunks_created:
                     # Rough calculation: 1 token per chunk

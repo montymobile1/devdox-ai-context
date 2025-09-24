@@ -11,9 +11,9 @@ from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.core.config import settings
 from app.infrastructure.mailing_service import ProjectAnalysisFailure
 from app.core.mail_container import get_email_dispatcher
-from app.schemas.job_trace_metadata import JobTraceMetaData
+from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 from app.infrastructure.mailing_service import Template
-from infrastructure.mailing_service.models.context_shapes import ProjectAnalysisSuccess
+from app.infrastructure.mailing_service.models.context_shapes import ProjectAnalysisSuccess
 
 
 class QueueWorker:
@@ -171,9 +171,8 @@ class QueueWorker:
                         job_finished_at=serialized_model["job_finished_at"],
                         job_settled_at=serialized_model["job_settled_at"],
                         error_type=serialized_model["error_type"],
-                        error_stacktrace=serialized_model["error_stacktrace"],
-                        error_stacktrace_truncated=serialized_model["error_stacktrace_truncated"],
                         error_summary=serialized_model["error_summary"],
+                        error_chain=serialized_model["error_chain"],
                         run_ms=serialized_model["run_ms"],
                         total_ms=serialized_model["total_ms"],
                         user_id=serialized_model["user_id"],

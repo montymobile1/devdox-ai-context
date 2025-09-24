@@ -23,7 +23,7 @@ from app.handlers.utils.repo_fetcher import RepoFetcher
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
-from schemas.job_trace_metadata import JobTraceMetaData
+from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 
 logger = logging.getLogger(__name__)
 

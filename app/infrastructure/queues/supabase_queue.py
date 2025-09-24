@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from tembo_pgmq_python.async_queue import PGMQueue
 from tembo_pgmq_python.messages import Message
 
-from schemas.job_trace_metadata import JobTraceMetaData
+from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 
 logger = logging.getLogger(__name__)
 
