@@ -61,7 +61,7 @@ class OutgoingTextEmail(EmailEnvelope):
 	text_body: NonBlankStr = Field(default=..., description="Raw Plain text body of the email")
 
 class OutgoingTemplatedContextEmail(EmailEnvelope):
-	template_context: dict[str, Any] = Field(
+	template_context: Optional[dict[str, Any]] = Field(
 		default_factory=dict, description="Template context with variables for rendering (e.g., {'project_name': 'X', 'risks': [...]}))"
 	)
 
