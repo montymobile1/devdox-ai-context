@@ -1,4 +1,3 @@
-import traceback
 from datetime import datetime, timedelta, UTC
 from typing import Any, Dict, List, Optional
 
