@@ -4,8 +4,8 @@ from typing import Dict, Optional, Type
 from pydantic import BaseModel, Field
 
 from app.infrastructure.mailing_service.models.base_models import NonBlankStr
-from app.infrastructure.mailing_service.models.context_shapes import BaseContextShape, ProjectAnalysisFailure
-from infrastructure.mailing_service.models.context_shapes import ProjectAnalysisSuccess
+from app.infrastructure.mailing_service.models.context_shapes import ProjectAnalysisFailure
+from app.infrastructure.mailing_service.models.context_shapes import ProjectAnalysisSuccess
 
 
 class Template(Enum):
