@@ -308,7 +308,7 @@ class SupabaseQueue:
             )
             return None
 
-    async def complete_job(self, job_data: Dict[str, Any], job_tracer:JobTraceMetaData, result: Dict[str, Any] = None) -> bool:
+    async def complete_job(self, job_data: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None, result: Dict[str, Any] = None) -> bool:
         """
         Mark a job as completed
 
@@ -328,9 +328,10 @@ class SupabaseQueue:
                 log_summary = "No pgmq_msg_id found in job data"
                 logger.error(log_summary)
                 
-                job_tracer.record_error(
-                    summary = log_summary,
-                )
+                if job_tracer:
+                    job_tracer.record_error(
+                        summary = log_summary,
+                    )
                 
                 return False
 
@@ -343,9 +344,10 @@ class SupabaseQueue:
                 log_summary = f"Failed to mark job {job_data.get('id')} as completed"
                 logger.error(log_summary)
                 
-                job_tracer.record_error(
-                    summary = log_summary,
-                )
+                if job_tracer:
+                    job_tracer.record_error(
+                        summary = log_summary,
+                    )
                 
                 return False
 
@@ -353,18 +355,19 @@ class SupabaseQueue:
             log_summary = f"Failed to complete job {job_data.get('id')}"
             logger.exception(log_summary)
             
-            job_tracer.record_error(
-                summary = log_summary,
-                exc=e
-            )
+            if job_tracer:
+                job_tracer.record_error(
+                    summary = log_summary,
+                    exc=e
+                )
             
             return False
     
     async def fail_job(
         self,
         job_data: Dict[str, Any],
-        job_tracer:JobTraceMetaData,
         error: BaseException,
+        job_tracer:Optional[JobTraceMetaData] = None,
         error_trace: str = None,
         retry: bool = True,
     ) -> bool:
@@ -439,20 +442,22 @@ class SupabaseQueue:
                     log_summary = f"Job {job_data.get('id')} permanently failed after {attempts} attempts"
                     logger.error(log_summary)
                     
-                    job_tracer.record_error(
-                        summary = log_summary,
-                        exc=error,
-                    )
+                    if job_tracer:
+                        job_tracer.record_error(
+                            summary = log_summary,
+                            exc=error,
+                        )
                     
                     return True
                 else:
                     log_summary = f"Failed to archive permanently failed job {job_data.get('id')}"
                     logger.error(log_summary)
                     
-                    job_tracer.record_error(
-                        summary = log_summary,
-                        exc=error,
-                    )
+                    if job_tracer:
+                        job_tracer.record_error(
+                            summary = log_summary,
+                            exc=error,
+                        )
                     
                     return False
 
@@ -460,10 +465,11 @@ class SupabaseQueue:
             log_summary = f"Failed to fail job {job_data.get('id')}"
             logger.exception(log_summary)
             
-            job_tracer.record_error(
-                summary = log_summary,
-                exc=e,
-            )
+            if job_tracer:
+                job_tracer.record_error(
+                    summary = log_summary,
+                    exc=e,
+                )
             
             return False
 

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from dependency_injector.wiring import Provide, inject
 import httpx
 
@@ -25,14 +25,15 @@ class MessageHandler:
         self.processing_service = processing_service
         self.queue_service = queue_service
 
-    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracer:JobTraceMetaData) -> None:
+    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None) -> None:
         """Handle repository processing message"""
         
         try:
             # Process the repository
-            job_tracer.mark_job_started()
+            if job_tracer:
+                job_tracer.mark_job_started()
             
-            result = await self.processing_service.process_repository(job_payload, job_tracer)
+            result = await self.processing_service.process_repository(job_payload, job_tracer=job_tracer)
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
                 
@@ -61,17 +62,19 @@ class MessageHandler:
                     f"{logg_message}: {result.error_message}"
                 )
                 
-                job_tracer.record_error(
-                    summary=logg_message,
-                    exc=result.error_object
-                )
+                if job_tracer:
+                    job_tracer.record_error(
+                        summary=logg_message,
+                        exc=result.error_object
+                    )
                 
                 
         except Exception as e:
             logger.error(f"Failed to handle processing message: {str(e)}")
             raise
         finally:
-            job_tracer.mark_job_finished()
+            if job_tracer:
+                job_tracer.mark_job_finished()
 
     async def _send_completion_callback(self, callback_url: str, result) -> None:
         """Send completion notification to callback URL"""

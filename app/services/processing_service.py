@@ -341,7 +341,7 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(self, job_payload: Dict[str, Any], job_tracer:JobTraceMetaData) -> ProcessingResult:
+    async def process_repository(self, job_payload: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
@@ -352,9 +352,10 @@ class ProcessingService:
             # Get repository information
             repo = await self.repo_repository.find_by_repo_id(job_payload["repo_id"])
             
-            job_tracer.add_metadata(
-                repository_html_url=repo.html_url,
-            )
+            if job_tracer:
+                job_tracer.add_metadata(
+                    repository_html_url=repo.html_url,
+                )
             
             if not repo:
                 return ProcessingResult(
@@ -446,7 +447,7 @@ class ProcessingService:
             )
 
     async def _get_authenticated_git_client(
-        self, user_id: str, git_provider: str, git_token: str, job_tracer:JobTraceMetaData,
+        self, user_id: str, git_provider: str, git_token: str, job_tracer:Optional[JobTraceMetaData] = None,
     ):
         """Get authenticated git client for user"""
 
@@ -461,9 +462,10 @@ class ProcessingService:
         # Decrypt the stored token
         user = await self.user_info.find_by_user_id(user_id)
         
-        job_tracer.add_metadata(
-            user_email=user.email,
-        )
+        if job_tracer:
+	        job_tracer.add_metadata(
+	            user_email=user.email,
+	        )
         
         decrypted_encryption_salt = self.encryption_service.decrypt(
             user.encryption_salt
