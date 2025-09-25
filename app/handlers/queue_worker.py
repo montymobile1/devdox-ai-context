@@ -63,7 +63,7 @@ class QueueWorker:
         if self.stats["current_job"]:
             await asyncio.sleep(5)  # Grace period
 
-    async def _worker_loop(self, queue_name: str, job_types: list):
+    async def _worker_loop(self, queue_name: str, job_types: list, enable_job_tracer:bool=True):
         """Worker loop for processing specific queue with job types"""
 
         consecutive_failures = 0
@@ -75,7 +75,10 @@ class QueueWorker:
                 if job:
                     consecutive_failures = 0  # Reset failure counter
                     
-                    job_tracer = JobTraceMetaData()
+                    if enable_job_tracer:
+                        job_tracer = JobTraceMetaData()
+                    else:
+                        job_tracer = None
                     
                     await self._process_job(queue_name, job, job_tracer)
                 else:
