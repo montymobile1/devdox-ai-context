@@ -529,17 +529,16 @@ class TestSupabaseQueue:
         }
         
         supabase_queue.queue.delete = AsyncMock(return_value=True)
-        supabase_queue.queue.send_delay = AsyncMock(return_value="retry_job")
+        supabase_queue.queue.send = AsyncMock()
         
         result = await supabase_queue.fail_job(job_data, "Test error", retry=True)
         
         assert result is True
         supabase_queue.queue.delete.assert_called_once_with("processing", "msg_123")
-        supabase_queue.queue.send_delay.assert_called_once()
+        supabase_queue.queue.send.assert_called_once()
         
         # Check retry delay calculation
-        call_args = supabase_queue.queue.send_delay.call_args
-        retry_delay = call_args[0][2]
+        retry_delay = supabase_queue.queue.send.await_args.kwargs["delay"]
         assert retry_delay == 10  # 2^(1-1) * 10 = 10
     
     @pytest.mark.asyncio
