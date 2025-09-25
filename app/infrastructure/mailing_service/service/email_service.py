@@ -76,17 +76,14 @@ class EmailDispatchOptions(BaseModel):
         return RecipientSet(to=to, cc=cc, bcc=merged_bcc)
     
     def prefix_subject(self, subject: str) -> str:
-        """
-        Make subject prefix check case-insensitive
-        """
+        """Make subject prefix check case-insensitive."""
         p = self.subject_prefix
         if not p:
             return subject
         
-        if subject.casefold().startswith((p or "").casefold()):
+        if subject.casefold().startswith(p.casefold()):
             return subject
         return f"{p} {subject}"
-
 
 class EmailDispatcher(IEmailDispatcher):
 
