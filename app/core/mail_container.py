@@ -1,6 +1,6 @@
 from dependency_injector import containers, providers
 
-from core.config import settings
+from app.core.config import settings
 from app.infrastructure.mailing_service import EmailDispatcher, EmailDispatchOptions, FastAPIMailClient
 
 
