@@ -589,13 +589,13 @@ class TestSupabaseQueue:
         }
         
         supabase_queue.queue.delete = AsyncMock(return_value=True)
-        supabase_queue.queue.send_delay = AsyncMock(return_value="retry_job")
+        supabase_queue.queue.send = AsyncMock()
         
         result = await supabase_queue.fail_job(job_data, "Error", retry=True)
         
         assert result is True
         supabase_queue.queue.delete.assert_called_once()
-        supabase_queue.queue.send_delay.assert_called_once()
+        supabase_queue.queue.send.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_get_queue_stats_success(self, supabase_queue):
@@ -731,7 +731,7 @@ class TestSupabaseQueueIntegration:
             mock_queue = MagicMock()
             mock_queue.init = AsyncMock()
             mock_queue.delete = AsyncMock(return_value=True)
-            mock_queue.send_delay = AsyncMock(return_value="retry_job")
+            mock_queue.send = AsyncMock()
             mock_pgmqueue_class.return_value = mock_queue
             
             queue = SupabaseQueue(**queue_config)
@@ -758,6 +758,5 @@ class TestSupabaseQueueIntegration:
                 await queue.fail_job(job_data, "Test error", retry=True)
                 
                 # Check that send_delay was called with expected delay
-                call_args = mock_queue.send_delay.call_args
-                actual_delay = call_args[0][2]
+                actual_delay = mock_queue.send.await_args.kwargs["delay"]
                 assert actual_delay == expected_delay, f"Expected {expected_delay}, got {actual_delay} for attempt {attempts}"
