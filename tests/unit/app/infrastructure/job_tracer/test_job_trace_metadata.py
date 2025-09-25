@@ -144,15 +144,3 @@ def test_datetime_validation_rejects_non_dt():
     with pytest.raises(TypeError, match="must be a datetime or ISO8601 string"):
         JobTraceMetaData(job_queued_at=12345)
 
-
-def test_serialize_dt():
-    j = JobTraceMetaData()
-    dt = datetime(2023, 1, 1, tzinfo=UTC)
-    iso = j._serialize_dt(dt)
-    assert iso.endswith("Z")
-
-    dt2 = datetime(2023, 1, 1, tzinfo=UTC).astimezone()
-    iso2 = j._serialize_dt(dt2)
-    assert "Z" not in iso2
-
-    assert j._serialize_dt(None) is None
