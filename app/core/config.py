@@ -1,6 +1,4 @@
-from pathlib import Path
-
-from pydantic import EmailStr, Field, field_validator, model_validator
+from pydantic import model_validator
 from pathlib import Path
 
 from pydantic import EmailStr, Field, field_validator
