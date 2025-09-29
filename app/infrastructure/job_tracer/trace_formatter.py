@@ -15,6 +15,45 @@ def _exc_message(te: traceback.TracebackException) -> str:
     return exc_only
 
 
+def _next_link(tb: traceback.TracebackException) -> traceback.TracebackException | None:
+    """Prefer explicit causes; fall back to context (unless suppressed)."""
+    if tb.__cause__ is not None:
+        return tb.__cause__
+    if tb.__suppress_context__:
+        return None
+    return tb.__context__
+
+def _truncate(msg: str, limit: int) -> str:
+    return (msg if not limit or len(msg) <= limit else f"{msg[:limit-1]}…")
+
+def _node_from_tbexc(
+    tb: traceback.TracebackException,
+    include_location: bool,
+    msg_limit: int,
+) -> Dict[str, Any]:
+    frame = tb.stack[-1] if tb.stack else None
+
+    func = frame.name if frame else "<unknown>"
+    if include_location and frame:
+        filename = os.path.basename(frame.filename)
+        lineno = frame.lineno
+    else:
+        filename = None
+        lineno = None
+
+    exc_type = getattr(tb, "exc_type", None)
+    type_name = getattr(exc_type, "__name__", getattr(tb, "exc_type_name", "Exception"))
+    msg = _truncate(_exc_message(tb), msg_limit)
+
+    return {
+        "func": func,
+        "type": type_name,
+        "msg": msg,
+        "file": filename,
+        "line": lineno,
+    }
+
+
 def build_error_chain_for_template(
     exc: BaseException,
     *,
@@ -25,45 +64,15 @@ def build_error_chain_for_template(
     Returns OUTER→INNER nodes for top-down display.
     Each node: {depth, func, type, msg, file, line}
     """
-    te = traceback.TracebackException.from_exception(exc)
-    chain: List[Dict[str, Any]] = []
+    tb = traceback.TracebackException.from_exception(exc)
+    raw: List[Dict[str, Any]] = []
 
-    cur = te
-    while cur:
-        # Where THIS exception was raised (last frame of its stack)
-        if cur.stack:
-            frame = cur.stack[-1]
-            func = frame.name
-            filename = os.path.basename(frame.filename) if include_location else None
-            lineno = frame.lineno if include_location else None
-        else:
-            func, filename, lineno = "<unknown>", None, None
+    while tb:
+        raw.append(_node_from_tbexc(tb, include_location, msg_limit))
+        tb = _next_link(tb)
 
-        exc_type = getattr(cur, "exc_type", None)
-        type_name = getattr(exc_type, "__name__", getattr(cur, "exc_type_name", "Exception"))
-        msg = _exc_message(cur)
-
-        if msg_limit and len(msg) > msg_limit:
-            msg = msg[: msg_limit - 1] + "…"
-
-        chain.append(
-            {
-                "func": func,
-                "type": type_name,
-                "msg": msg,
-                "file": filename,
-                "line": lineno,
-            }
-        )
-
-        # Prefer explicit causes; fall back to context (unless suppressed)
-        cur = cur.__cause__ or (None if cur.__suppress_context__ else cur.__context__)
-
-    # Reverse to OUTER→INNER and assign depth
-    chain = list(reversed(chain))
-    for i, node in enumerate(chain):
-        node["depth"] = i
-    return chain
+    # Reverse to OUTER→INNER and assign depth in one expression (no extra loop body)
+    return [{**node, "depth": i} for i, node in enumerate(reversed(raw))]
 
 
 def make_plain_stacktrace(
