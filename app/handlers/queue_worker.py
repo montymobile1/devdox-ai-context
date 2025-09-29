@@ -160,28 +160,25 @@ class QueueWorker:
     async def send_audit_email(self, job_tracer):
         if job_tracer:
             
-            send_success_email = False
-            
             if job_tracer.has_error:
-                send_fail_email = True
+                is_failure_email = True
                 job_tracer.mark_job_settled()
             else:
                 if not job_tracer.user_email:
-                    send_fail_email = True
+                    is_failure_email = True
                     job_tracer.record_error(
                         summary="No user email has been provided to send the email to",
                     )
                 else:
-                    send_fail_email = False
-                    send_success_email = True
+                    is_failure_email = False
                 
                 job_tracer.mark_job_settled()
             
-            if send_fail_email:
+            serialized_model = job_tracer.model_dump()
+            
+            if is_failure_email:
                 if not settings.mail.MAIL_AUDIT_RECIPIENTS:
                     raise RuntimeError("MAIL_AUDIT_RECIPIENTS is not configured")
-                
-                serialized_model = job_tracer.model_dump()
                 
                 context = ProjectAnalysisFailure(
                     repository_html_url=serialized_model["repository_html_url"],
@@ -208,23 +205,20 @@ class QueueWorker:
                     template=Template.PROJECT_ANALYSIS_FAILURE,
                     context=context,
                 )
-            elif send_success_email:
-                
-                serialized_model = job_tracer.model_dump()
-                
-                context = ProjectAnalysisSuccess(
-                    repository_html_url=serialized_model.get("repository_html_url"),
-                    repository_branch=serialized_model.get("repository_branch"),
-                    job_type=serialized_model.get("job_type"),
-                    job_queued_at=serialized_model.get("job_queued_at")
-                )
-                
-                email_dispatcher = get_email_dispatcher()
-                await email_dispatcher.send_templated_html(
-                    to=[job_tracer.user_email],
-                    template=Template.PROJECT_ANALYSIS_SUCCESS,
-                    context=context,
-                )
+
+            context = ProjectAnalysisSuccess(
+                repository_html_url=serialized_model.get("repository_html_url"),
+                repository_branch=serialized_model.get("repository_branch"),
+                job_type=serialized_model.get("job_type"),
+                job_queued_at=serialized_model.get("job_queued_at")
+            )
+            
+            email_dispatcher = get_email_dispatcher()
+            await email_dispatcher.send_templated_html(
+                to=[job_tracer.user_email],
+                template=Template.PROJECT_ANALYSIS_SUCCESS,
+                context=context,
+            )
             
     
     def get_stats(self) -> Dict[str, Any]:
