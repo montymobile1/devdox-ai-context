@@ -56,15 +56,15 @@ class MessageHandler:
                     
             else:
                 
-                logg_message = f"Failed to process context {result.context_id}"
+                log_message = f"Failed to process context {result.context_id}"
                 
                 logger.error(
-                    f"{logg_message}: {result.error_message}"
+                    f"{log_message}: {result.error_message}"
                 )
                 
                 if job_tracer:
                     job_tracer.record_error(
-                        summary=logg_message,
+                        summary=log_message,
                         exc=result.error_object
                     )
                 
