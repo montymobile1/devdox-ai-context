@@ -352,11 +352,6 @@ class ProcessingService:
             # Get repository information
             repo = await self.repo_repository.find_by_repo_id(job_payload["repo_id"])
             
-            if job_tracer:
-                job_tracer.add_metadata(
-                    repository_html_url=repo.html_url,
-                )
-            
             if not repo:
                 return ProcessingResult(
                     success=False,
@@ -366,7 +361,12 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository not found",
                 )
-
+            
+            if job_tracer:
+                job_tracer.add_metadata(
+                    repository_html_url=repo.html_url,
+                )
+            
             # Get git credentials
             _ = await self._get_authenticated_git_client(
                 job_tracer=job_tracer,
