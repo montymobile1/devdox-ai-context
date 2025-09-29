@@ -58,13 +58,14 @@ def build_error_chain_for_template(
     exc: BaseException,
     *,
     include_location: bool = True,
+    include_locals: bool = False,
     msg_limit: int = 200,
 ) -> List[Dict[str, Any]]:
     """
     Returns OUTER→INNER nodes for top-down display.
     Each node: {depth, func, type, msg, file, line}
     """
-    tb = traceback.TracebackException.from_exception(exc)
+    tb = traceback.TracebackException.from_exception(exc, capture_locals=include_locals)
     raw: List[Dict[str, Any]] = []
 
     while tb:

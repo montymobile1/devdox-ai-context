@@ -127,7 +127,7 @@ class JobTraceMetaData(BaseModel):
         exc: Optional[BaseException]=None,
         summary: Optional[str] = None,
         include_locals: bool = False,
-        max_chars: Optional[int] = None,
+        max_chars: Optional[int] = 14000,
     ) -> "JobTraceMetaData":
         """
         	:param include_locals: sets whether to avoid leaking secrets, flip to True when debugging only.
@@ -138,14 +138,14 @@ class JobTraceMetaData(BaseModel):
         
         if exc:
             
-            self.error_chain = build_error_chain_for_template(exc, include_location=True, msg_limit=200)
+            self.error_chain = build_error_chain_for_template(exc, include_location=True, msg_limit=200, include_locals=include_locals)
             
             self.error_type = " → ".join(n["func"] for n in self.error_chain) if self.error_chain else f"{exc.__class__.__module__}.{exc.__class__.__name__}"
             
             outer = self.error_chain[0] if self.error_chain else None
             derived_error_summary = f"{outer['type']}: {outer['msg']}" if outer else ""
             
-            self.error_stacktrace, self.error_stacktrace_truncated = make_plain_stacktrace(exc, max_chars=14000)
+            self.error_stacktrace, self.error_stacktrace_truncated = make_plain_stacktrace(exc, max_chars=max_chars)
         
         if summary:
             self.error_summary = summary
