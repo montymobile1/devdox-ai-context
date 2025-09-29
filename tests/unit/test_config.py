@@ -279,6 +279,8 @@ class TestFieldValidation:
             with pytest.raises(ValidationError):
                 Settings()
     
+    
+    @pytest.mark.skipif(settings.Environment.lower() != "test", reason="This test only works on a test environment on the pipeline")
     def test_vector_dimensions_validation(self):
         """Test vector dimensions validation"""
         with patch.dict(
