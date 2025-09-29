@@ -531,9 +531,10 @@ class TestSupabaseQueue:
         supabase_queue.queue.delete = AsyncMock(return_value=True)
         supabase_queue.queue.send = AsyncMock()
         
-        result = await supabase_queue.fail_job(job_data, "Test error", retry=True)
+        is_failed_perma, operation_result = await supabase_queue.fail_job(job_data, Exception("Test error"), retry=True)
         
-        assert result is True
+        assert is_failed_perma is False
+        assert operation_result is True
         supabase_queue.queue.delete.assert_called_once_with("processing", "msg_123")
         supabase_queue.queue.send.assert_called_once()
         
@@ -554,9 +555,10 @@ class TestSupabaseQueue:
         
         supabase_queue.queue.archive = AsyncMock(return_value=True)
         
-        result = await supabase_queue.fail_job(job_data, "Final error", retry=True)
+        is_failed_perma, operation_result = await supabase_queue.fail_job(job_data, Exception("Final error"), retry=True)
         
-        assert result is True
+        assert is_failed_perma is True
+        assert operation_result is True
         supabase_queue.queue.archive.assert_called_once_with("processing", "msg_123")
         supabase_queue.queue.send_delay.assert_not_called()
     
@@ -572,9 +574,10 @@ class TestSupabaseQueue:
         
         supabase_queue.queue.archive = AsyncMock(return_value=True)
         
-        result = await supabase_queue.fail_job(job_data, "Error", retry=False)
+        is_failed_perma, operation_result = await supabase_queue.fail_job(job_data, Exception("Error"), retry=False)
         
-        assert result is True
+        assert is_failed_perma is True
+        assert operation_result is True
         supabase_queue.queue.archive.assert_called_once()
     
     @pytest.mark.asyncio
@@ -591,9 +594,10 @@ class TestSupabaseQueue:
         supabase_queue.queue.delete = AsyncMock(return_value=True)
         supabase_queue.queue.send = AsyncMock()
         
-        result = await supabase_queue.fail_job(job_data, "Error", retry=True)
+        is_failed_perma, operation_result = await supabase_queue.fail_job(job_data, Exception("Error"), retry=True)
         
-        assert result is True
+        assert is_failed_perma is False
+        assert operation_result is True
         supabase_queue.queue.delete.assert_called_once()
         supabase_queue.queue.send.assert_called_once()
     

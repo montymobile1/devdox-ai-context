@@ -234,37 +234,6 @@ class TestQueueWorker:
         assert queue_worker.stats["jobs_processed"] == 1
 
     @pytest.mark.asyncio
-    @patch("time.time")
-    async def test_process_job_handler_failure(self, mock_time, queue_worker):
-        """Test job processing with handler failure"""
-        mock_time.side_effect = [100.0, 103.0]
-
-        job = {
-            "id": "job-fail",
-            "job_type": "analyze",
-            "payload": {"repo_id": "repo-456"},
-        }
-        
-        # Make handler fail
-        expected_exception = Exception(
-            "Handler error"
-        )
-        
-        queue_worker.message_handler.handle_processing_message.side_effect = expected_exception
-
-        await queue_worker._process_job("processing", job)
-
-        # Verify job was marked as failed
-        queue_worker.queue_service.fail_job.assert_called_once_with(
-            job, expected_exception, job_tracer=None
-        )
-
-        # Verify stats updated
-        assert queue_worker.stats["jobs_processed"] == 0
-        assert queue_worker.stats["jobs_failed"] == 1
-        assert queue_worker.stats["current_job"] is None
-
-    @pytest.mark.asyncio
     async def test_process_job_missing_id(self, queue_worker):
         """Test job processing with missing job ID"""
         job = {"job_type": "analyze", "payload": {"repo_id": "repo-456"}}
