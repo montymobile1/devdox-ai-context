@@ -85,7 +85,7 @@ class TestProcessingResult:
         """Test ProcessingResult to dict conversion"""
         result = ProcessingResult(success=True, context_id="ctx789", chunks_created=50)
 
-        result_dict = result.dict()
+        result_dict = result_dict = result.model_dump()
 
         assert result_dict["success"] is True
         assert result_dict["context_id"] == "ctx789"

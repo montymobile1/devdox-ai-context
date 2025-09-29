@@ -1,6 +1,7 @@
 """
 Test cases for main application entry point
 """
+import sys
 import pytest
 import signal
 from unittest.mock import AsyncMock, MagicMock, patch, call
@@ -78,7 +79,8 @@ class TestWorkerService:
             with pytest.raises(Exception) as exc_info:
                 worker_service.start_workers()
             assert "Worker creation failed" in str(exc_info.value)
-
+    
+    @pytest.mark.skipif(sys.platform == "win32", reason="This test does not run on Windows because python library does not implement `get_running_loop` for windows.")
     @pytest.mark.asyncio
     async def test_setup_signal_handlers_basic(self, worker_service):
         """Test basic signal handler setup"""
@@ -184,7 +186,8 @@ class TestLifespanManager:
 
 class TestSignalHandlers:
     """Test signal handler setup"""
-
+    
+    @pytest.mark.skipif(sys.platform == "win32", reason="This test does not run on Windows because python library does not implement `get_running_loop` for windows.")
     @pytest.mark.asyncio
     async def test_signal_handler_execution_async(self):
         """Test signal handler execution triggers shutdown event"""
@@ -283,7 +286,8 @@ class TestIntegration:
             with TestClient(app) as client:
                 response = client.get("/health_check")
                 assert response.status_code == 200
-
+    
+    @pytest.mark.skipif(sys.platform == "win32", reason="This test does not run on Windows because python library does not implement `get_running_loop` for windows.")
     @pytest.mark.asyncio
     async def test_signal_handling_integration(self):
         """Test that signal handling integrates properly with FastAPI"""
