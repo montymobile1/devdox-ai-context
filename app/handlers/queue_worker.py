@@ -127,14 +127,28 @@ class QueueWorker:
             self.stats["last_job_time"] = datetime.now(timezone.utc)
 
         except Exception as e:
-            logging.error(
-                f"Worker {self.worker_id} encountered an error processing job {job_id}: {e}"
+            logging.exception(
+                f"Worker {self.worker_id} encountered an error processing job {job_id}"
             )
             self.stats["jobs_failed"] += 1
 
             # Mark job as failed with error details
-            await self.queue_service.fail_job(job, e, job_tracer=job_tracer)
-
+            is_perma_failure = False
+            try:
+                if not job.get("pgmq_msg_id"):
+                    logging.error("No pgmq_msg_id found in job data")
+                else:
+                    is_perma_failure, _ = await self.queue_service.fail_job(job, e, job_tracer=job_tracer)
+            except Exception as internal_fail_job_exception:
+                log_summary = f"Failed to fail job {job_id}"
+                logging.exception(log_summary)
+                
+                if job_tracer and is_perma_failure:
+                    job_tracer.record_error(
+                        summary = log_summary,
+                        exc=internal_fail_job_exception,
+                    )
+                
         finally:
             self.stats["current_job"] = None
             
