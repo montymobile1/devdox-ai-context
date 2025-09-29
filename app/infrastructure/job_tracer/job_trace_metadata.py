@@ -42,8 +42,8 @@ class JobTraceMetaData(BaseModel):
     
     error_chain: Optional[List[Dict[str, Any]]] = Field(init=False, default=None)
     
-    repo_id: str = Field(init=False, default=None)
-    user_id: str = Field(init=False, default=None)
+    repo_id: Optional[str] = Field(init=False, default=None)
+    user_id: Optional[str] = Field(init=False, default=None)
     
     # ---- computed properties --------------------------------------------------
     @computed_field
