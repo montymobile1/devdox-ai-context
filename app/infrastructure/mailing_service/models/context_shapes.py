@@ -7,27 +7,36 @@ class BaseContextShape(BaseModel):
 
 class ProjectAnalysisFailureTemplateLayout(BaseModel):
     """
-        Fields that control width and spacing internally inside the template, no need to pass it manually when instance creating, just statically change it here
-        - `__template_layout_rail_w` -> `RAIL_W` (gutter width)
-            Think of this as a fixed left “lane” reserved for the tree graphics (the dots, dashed line, and elbows).
-                - Bigger RAIL_W → more breathing room for the tree art; the text starts further to the right.
-                - Smaller RAIL_W → the text starts closer to the left edge.
-                - Use when: long function names or you want the connectors to feel roomy.
-                - Typical range: 120–220 px (default in examples: 120).
-        
-        - __template_layout_step -> `STEP` (spacing between levels)
-            How far each deeper level appears to be indented inside the rail.
-                - Bigger STEP → clearer visual separation between levels, but the dots/elbows spread out horizontally.
-                - Smaller STEP → tighter, more compact levels.
-                - Use when: levels look cramped (increase) or too stretched (decrease).
-                - Typical range: 14–24 px (default: 14).
-        
-        - __template_layout_max_levels -> `MAX_LEVELS` (visual clamp)
-            The maximum visible depth we draw inside the rail before we stop indenting further. If the real chain is deeper, we show a little “+N” badge indicating how many extra levels are hidden visually, but the content still lines up neatly because we don’t keep pushing it to the right.
-                - Higher MAX_LEVELS → you see more real indentation before clamping.
-                - Lower MAX_LEVELS → keeps things tight for very deep stacks.
-                - Use when: emails from some jobs get very deep and start to look messy—lower this to keep layout tidy.
-                - Typical range: 5–10 (default: 5).
+    Fields that control width and spacing internally inside the template; no need to pass
+    it manually when instance creating—just change it here.
+
+    - `__template_layout_rail_w` -> `RAIL_W` (gutter width)
+        Think of this as a fixed left "lane" reserved for the tree graphics (the dots,
+        dashed line, and elbows).
+            - Bigger RAIL_W -> more breathing room for the tree art; the text starts
+              further to the right.
+            - Smaller RAIL_W -> the text starts closer to the left edge.
+            - Use when: long function names or you want the connectors to feel roomy.
+            - Typical range: 120-220 px (default in examples: 120).
+
+    - `__template_layout_step` -> `STEP` (spacing between levels)
+        How far each deeper level appears to be indented inside the rail.
+            - Bigger STEP -> clearer visual separation between levels, but the dots/elbows
+              spread out horizontally.
+            - Smaller STEP -> tighter, more compact levels.
+            - Use when: levels look cramped (increase) or too stretched (decrease).
+            - Typical range: 14-24 px (default: 14).
+
+    - `__template_layout_max_levels` -> `MAX_LEVELS` (visual clamp)
+        The maximum visible depth we draw inside the rail before we stop indenting further.
+        If the real chain is deeper, we show a little "+N" badge indicating how many extra
+        levels are hidden visually, but the content still lines up neatly because we don't
+        keep pushing it to the right.
+            - Higher MAX_LEVELS -> you see more real indentation before clamping.
+            - Lower MAX_LEVELS -> keeps things tight for very deep stacks.
+            - Use when: emails from some jobs get very deep and start to look messy -- lower
+              this to keep layout tidy.
+            - Typical range: 5-10 (default: 5).
     """
     
     # Changeable
