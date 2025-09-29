@@ -71,7 +71,7 @@ class TestMessageHandler:
         await message_handler.handle_processing_message(job_payload)
         
         # Verify processing service was called
-        mock_processing_service.process_repository.assert_called_once_with(job_payload)
+        mock_processing_service.process_repository.assert_called_once_with(job_payload, job_tracer=None)
         
         # Verify tokens were consumed
         mock_auth_service.consume_tokens.assert_called_once_with("user123", 50)
@@ -100,7 +100,7 @@ class TestMessageHandler:
         await message_handler.handle_processing_message(job_payload)
         
         # Verify processing service was called
-        mock_processing_service.process_repository.assert_called_once_with(job_payload)
+        mock_processing_service.process_repository.assert_called_once_with(job_payload, job_tracer=None)
         
         # Verify tokens were NOT consumed since no chunks created
         mock_auth_service.consume_tokens.assert_not_called()
@@ -162,7 +162,7 @@ class TestMessageHandler:
         await message_handler.handle_processing_message(job_payload)
         
         # Verify processing service was called
-        mock_processing_service.process_repository.assert_called_once_with(job_payload)
+        mock_processing_service.process_repository.assert_called_once_with(job_payload, job_tracer=None)
         
         # Verify tokens were NOT consumed since processing failed
         mock_auth_service.consume_tokens.assert_not_called()
@@ -185,7 +185,7 @@ class TestMessageHandler:
             await message_handler.handle_processing_message(job_payload)
         
         assert "Processing service error" in str(exc_info.value)
-        mock_processing_service.process_repository.assert_called_once_with(job_payload)
+        mock_processing_service.process_repository.assert_called_once_with(job_payload, job_tracer=None)
     
     @pytest.mark.asyncio
     async def test_handle_processing_message_auth_service_failure(self, message_handler, mock_processing_service, mock_auth_service):
@@ -387,7 +387,7 @@ class TestMessageHandlerIntegration:
         await handler.handle_processing_message(payload)
         
         # Verify workflow
-        mock_processing.process_repository.assert_called_once_with(payload)
+        mock_processing.process_repository.assert_called_once_with(payload, job_tracer=None)
         mock_auth.consume_tokens.assert_called_once_with("user456", 35)
     
     @pytest.mark.asyncio

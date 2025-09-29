@@ -145,9 +145,12 @@ class EmailDispatcher(IEmailDispatcher):
         
         template_meta = self._template_resolver.get_template_meta_by_name(template)
         transformed_subject = self._options.prefix_subject(subject if subject else template_meta.subject)
+
+        required_shape = template_meta.context_shape
+        if required_shape is not None:
+                if (context is None) or (not isinstance(context, required_shape)):
+                    raise MailTemplateError(exception_constants.INVALID_TEMPLATE_CONTEXT)
         
-        if not context and template_meta.context_shape or (template_meta.context_shape and type(context) != template_meta.context_shape):
-            raise MailTemplateError(exception_constants.INVALID_TEMPLATE_CONTEXT)
         
         email_model = OutgoingTemplatedHTMLEmail(
             recipients=recipients.to,

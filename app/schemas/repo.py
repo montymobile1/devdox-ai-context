@@ -1,7 +1,6 @@
 import uuid
 from types import SimpleNamespace
 
-from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
 from gitlab.v4.objects import Project
 from pydantic import BaseModel, Field, ConfigDict

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from dependency_injector.wiring import Provide, inject
 
@@ -9,6 +9,11 @@ from app.core.container import Container
 from app.handlers.message_handler import MessageHandler
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.core.config import settings
+from app.infrastructure.mailing_service import ProjectAnalysisFailure
+from app.core.mail_container import get_email_dispatcher
+from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
+from app.infrastructure.mailing_service import Template
+from app.infrastructure.mailing_service.models.context_shapes import ProjectAnalysisSuccess
 
 
 class QueueWorker:
@@ -58,7 +63,7 @@ class QueueWorker:
         if self.stats["current_job"]:
             await asyncio.sleep(5)  # Grace period
 
-    async def _worker_loop(self, queue_name: str, job_types: list):
+    async def _worker_loop(self, queue_name: str, job_types: list, enable_job_tracer:bool=True):
         """Worker loop for processing specific queue with job types"""
 
         consecutive_failures = 0
@@ -69,7 +74,13 @@ class QueueWorker:
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
                 if job:
                     consecutive_failures = 0  # Reset failure counter
-                    await self._process_job(queue_name, job)
+                    
+                    if enable_job_tracer:
+                        job_tracer = JobTraceMetaData()
+                    else:
+                        job_tracer = None
+                    
+                    await self._process_job(queue_name, job, job_tracer)
                 else:
                     # No jobs available, wait before checking again
                     await asyncio.sleep(settings.QUEUE_POLLING_INTERVAL_SECONDS or 5)
@@ -85,39 +96,131 @@ class QueueWorker:
                 backoff_time = min(60, 2**consecutive_failures)
                 await asyncio.sleep(backoff_time)
 
-    async def _process_job(self, queue_name: str, job: Dict[str, Any]):
+    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracer:Optional[JobTraceMetaData]=None):
         """Process a single job with comprehensive error handling and monitoring"""
         job_id = job.get("id", "unknown")
         job_type = job.get("job_type", "unknown")
         payload = job.get("payload", {})
-
+        
+        if job_tracer:
+            job_tracer.add_metadata(
+                repo_id=payload.get("repo_id"),
+                user_id=payload.get("user_id"),
+                job_context_id=payload.get("context_id"),
+                job_type=job_type,
+                repository_branch=payload.get("branch")
+            )
+        
         _ = time.time()
         self.stats["current_job"] = job_id
 
         try:
             # Route job to appropriate handler based on queue and type
             if queue_name == "processing" and job_type in ["analyze", "process"]:
-                await self.message_handler.handle_processing_message(payload)
+                await self.message_handler.handle_processing_message(payload, job_tracer=job_tracer)
 
             # Mark job as completed
-            await self.queue_service.complete_job(job)
+            await self.queue_service.complete_job(job, job_tracer=job_tracer)
 
             # Update statistics
             self.stats["jobs_processed"] += 1
             self.stats["last_job_time"] = datetime.now(timezone.utc)
 
         except Exception as e:
-            logging.error(
-                f"Worker {self.worker_id} encountered an error processing job {job_id}: {e}"
+            logging.exception(
+                f"Worker {self.worker_id} encountered an error processing job {job_id}"
             )
             self.stats["jobs_failed"] += 1
 
             # Mark job as failed with error details
-            await self.queue_service.fail_job(job_id, str(e))
-
+            is_perma_failure = False
+            try:
+                if not job.get("pgmq_msg_id"):
+                    logging.error("No pgmq_msg_id found in job data")
+                else:
+                    is_perma_failure, _ = await self.queue_service.fail_job(job, e, job_tracer=job_tracer)
+            except Exception as internal_fail_job_exception:
+                log_summary = f"Failed to fail job {job_id}"
+                logging.exception(log_summary)
+                
+                if job_tracer and is_perma_failure:
+                    job_tracer.record_error(
+                        summary = log_summary,
+                        exc=internal_fail_job_exception,
+                    )
+                
         finally:
             self.stats["current_job"] = None
+            
+            try:
+                await self.send_audit_email(job_tracer)
+            except Exception:
+                logging.exception("Error occurred while trying to send an email")
+    
+    async def send_audit_email(self, job_tracer):
+        if job_tracer:
+            
+            if job_tracer.has_error:
+                is_failure_email = True
+                job_tracer.mark_job_settled()
+            else:
+                if not job_tracer.user_email:
+                    is_failure_email = True
+                    job_tracer.record_error(
+                        summary="No user email has been provided to send the email to",
+                    )
+                else:
+                    is_failure_email = False
+                
+                job_tracer.mark_job_settled()
+            
+            serialized_model = job_tracer.model_dump()
+            
+            if is_failure_email:
+                if not settings.mail.MAIL_AUDIT_RECIPIENTS:
+                    raise RuntimeError("MAIL_AUDIT_RECIPIENTS is not configured")
+                
+                context = ProjectAnalysisFailure(
+                    repository_html_url=serialized_model["repository_html_url"],
+                    user_email=serialized_model["user_email"],
+                    repository_branch=serialized_model["repository_branch"],
+                    job_context_id=serialized_model["job_context_id"],
+                    job_type=serialized_model["job_type"],
+                    job_queued_at=serialized_model["job_queued_at"],
+                    job_started_at=serialized_model["job_started_at"],
+                    job_finished_at=serialized_model["job_finished_at"],
+                    job_settled_at=serialized_model["job_settled_at"],
+                    error_type=serialized_model["error_type"],
+                    error_summary=serialized_model["error_summary"],
+                    error_chain=serialized_model["error_chain"],
+                    run_ms=serialized_model["run_ms"],
+                    total_ms=serialized_model["total_ms"],
+                    user_id=serialized_model["user_id"],
+                    repo_id=serialized_model["repo_id"],
+                )
+                
+                email_dispatcher = get_email_dispatcher()
+                await email_dispatcher.send_templated_html(
+                    to=settings.mail.MAIL_AUDIT_RECIPIENTS,
+                    template=Template.PROJECT_ANALYSIS_FAILURE,
+                    context=context,
+                )
 
+            context = ProjectAnalysisSuccess(
+                repository_html_url=serialized_model.get("repository_html_url"),
+                repository_branch=serialized_model.get("repository_branch"),
+                job_type=serialized_model.get("job_type"),
+                job_queued_at=serialized_model.get("job_queued_at")
+            )
+            
+            email_dispatcher = get_email_dispatcher()
+            await email_dispatcher.send_templated_html(
+                to=[job_tracer.user_email],
+                template=Template.PROJECT_ANALYSIS_SUCCESS,
+                context=context,
+            )
+            
+    
     def get_stats(self) -> Dict[str, Any]:
         """Get worker statistics"""
         uptime = None

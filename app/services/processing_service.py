@@ -23,6 +23,7 @@ from app.handlers.utils.repo_fetcher import RepoFetcher
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
+from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 
 logger = logging.getLogger(__name__)
 
@@ -340,16 +341,17 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(self, job_payload: Dict[str, Any]) -> ProcessingResult:
+    async def process_repository(self, job_payload: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
 
         start_time = datetime.now(timezone.utc)
-
+        
         try:
             # Get repository information
             repo = await self.repo_repository.find_by_repo_id(job_payload["repo_id"])
+            
             if not repo:
                 return ProcessingResult(
                     success=False,
@@ -359,13 +361,20 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository not found",
                 )
-
+            
+            if job_tracer:
+                job_tracer.add_metadata(
+                    repository_html_url=repo.html_url,
+                )
+            
             # Get git credentials
             _ = await self._get_authenticated_git_client(
-                job_payload["user_id"],
-                job_payload["git_provider"],
-                job_payload["git_token"],
+                job_tracer=job_tracer,
+                user_id=job_payload["user_id"],
+                git_provider=job_payload["git_provider"],
+                git_token=job_payload["git_token"],
             )
+            
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
 
@@ -434,11 +443,11 @@ class ProcessingService:
             )
 
             return ProcessingResult(
-                success=False, context_id=context_id, error_message=str(e)
+                success=False, context_id=context_id, error_object=e, error_message=str(e)
             )
 
     async def _get_authenticated_git_client(
-        self, user_id: str, git_provider: str, git_token: str
+        self, user_id: str, git_provider: str, git_token: str, job_tracer:Optional[JobTraceMetaData] = None,
     ):
         """Get authenticated git client for user"""
 
@@ -452,7 +461,12 @@ class ProcessingService:
 
         # Decrypt the stored token
         user = await self.user_info.find_by_user_id(user_id)
-
+        
+        if job_tracer:
+	        job_tracer.add_metadata(
+	            user_email=user.email,
+	        )
+        
         decrypted_encryption_salt = self.encryption_service.decrypt(
             user.encryption_salt
         )

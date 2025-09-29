@@ -3,6 +3,7 @@ from .models.context_shapes import ProjectAnalysisFailure
 from .service.email_service import (
     EmailDispatcher,
     EmailDispatchOptions,
+    IEmailDispatcher,
 )
 from .service.interfaces import IEmailDispatcher
 
@@ -42,6 +43,7 @@ __all__ = [
     "EmailDispatchOptions",
     "Template",
     "TemplateResolver",
+    "IEmailDispatcher",
     
     # exception/
     "mail_exceptions",

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from dependency_injector.wiring import Provide, inject
 import httpx
 
@@ -7,6 +7,7 @@ import httpx
 from app.services.auth_service import AuthService
 from app.services.processing_service import ProcessingService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
+from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +25,18 @@ class MessageHandler:
         self.processing_service = processing_service
         self.queue_service = queue_service
 
-    async def handle_processing_message(self, job_payload: Dict[str, Any]) -> None:
+    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None) -> None:
         """Handle repository processing message"""
-
+        
         try:
             # Process the repository
-            result = await self.processing_service.process_repository(job_payload)
+            if job_tracer:
+                job_tracer.mark_job_started()
+            
+            result = await self.processing_service.process_repository(job_payload, job_tracer=job_tracer)
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
-
+                
                 # Consume tokens based on actual usage
                 if result.chunks_created:
                     # Rough calculation: 1 token per chunk
@@ -49,15 +53,28 @@ class MessageHandler:
                         logger.error(
                             f"Callback failed for {job_payload['callback_url']}: {str(callback_error)}"
                         )
-
+                    
             else:
+                
+                log_message = f"Failed to process context {result.context_id}"
+                
                 logger.error(
-                    f"Failed to process context {result.context_id}: {result.error_message}"
+                    f"{log_message}: {result.error_message}"
                 )
-
+                
+                if job_tracer:
+                    job_tracer.record_error(
+                        summary=log_message,
+                        exc=result.error_object
+                    )
+                
+                
         except Exception as e:
             logger.error(f"Failed to handle processing message: {str(e)}")
             raise
+        finally:
+            if job_tracer:
+                job_tracer.mark_job_finished()
 
     async def _send_completion_callback(self, callback_url: str, result) -> None:
         """Send completion notification to callback URL"""
