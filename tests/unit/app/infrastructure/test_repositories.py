@@ -553,7 +553,6 @@ class TestCodeChunksRepositoryHelper:
         fake = FakeCodeChunksStore()
         helper = CodeChunksRepositoryHelper(repo=fake)
 
-        now = datetime.datetime.now(datetime.timezone.utc)
         vec = [0.0] * EMBED_DIM
         data = [{
             "content": "hello",
