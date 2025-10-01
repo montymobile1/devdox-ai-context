@@ -139,8 +139,8 @@ class TestQueueWorker:
         await queue_worker._worker_loop("processing", ["analyze", "process"], enable_job_tracer=False)
 
         assert queue_worker._process_job.call_count == 2
-        queue_worker._process_job.assert_any_call('processing', job1, None, None)
-        queue_worker._process_job.assert_any_call('processing', job2, None, None)
+        queue_worker._process_job.assert_any_call('processing', job1, job_tracker_instance=None, job_tracer=None)
+        queue_worker._process_job.assert_any_call('processing', job2, job_tracker_instance=None, job_tracer=None)
 
     @pytest.mark.asyncio
     @patch("asyncio.sleep")
