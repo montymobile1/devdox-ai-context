@@ -67,6 +67,25 @@ class QueueWorker:
         if self.stats["current_job"]:
             await asyncio.sleep(5)  # Grace period
     
+    def get_stats(self) -> Dict[str, Any]:
+        """Get worker statistics"""
+        uptime = None
+        if self.stats["start_time"]:
+            uptime = (
+                datetime.now(timezone.utc) - self.stats["start_time"]
+            ).total_seconds()
+
+        return {
+            **self.stats,
+            "worker_id": self.worker_id,
+            "running": self.running,
+            "uptime_seconds": uptime,
+        }
+    
+    # ---------------------------------------------
+    # _worker_loop
+    # ---------------------------------------------
+    
     async def _worker_loop(self, queue_name: str, job_types: list[str], enable_job_tracer: bool = True):
         """Worker loop for processing specific queue with job types."""
         consecutive_failures = 0
@@ -125,149 +144,168 @@ class QueueWorker:
         await asyncio.sleep(min(60, 2 ** failures))
         return False
     
+    # ---------------------------------------------
+    # _process_job
+    # ---------------------------------------------
     
-    async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, job_tracer:Optional[JobTraceMetaData]=None):
-        """Process a single job with comprehensive error handling and monitoring"""
+    async def _process_job(
+            self,
+            queue_name: str,
+            job: Dict[str, Any],
+            job_tracker_instance: Optional[JobTracker] = None,
+            job_tracer: Optional[JobTraceMetaData] = None,
+    ) -> None:
+        """Process a single job with comprehensive error handling and monitoring."""
         job_id = job.get("id", "unknown")
         job_type = job.get("job_type", "unknown")
-        payload = job.get("payload", {})
+        payload = job.get("payload") or {}
         
-        if job_tracer:
-            job_tracer.add_metadata(
-                repo_id=payload.get("repo_id"),
-                user_id=payload.get("user_id"),
-                job_context_id=payload.get("context_id"),
-                job_type=job_type,
-                repository_branch=payload.get("branch")
-            )
+        self._seed_tracer(job_tracer, payload, job_type)
         
-        _ = time.time()
+        _ = time.time()  # (kept as in your code)
         self.stats["current_job"] = job_id
-
+        
         try:
-            # Route job to appropriate handler based on queue and type
-            if queue_name == "processing" and job_type in ["analyze", "process"]:
-                
-                if job_tracker_instance:
-                    await job_tracker_instance.start()
-                await self.message_handler.handle_processing_message(payload, job_tracker_instance, job_tracer=job_tracer)
-                
-            # Mark job as completed
-            await self.queue_service.complete_job(job, job_tracker_instance=job_tracker_instance, job_tracer=job_tracer)
-
-            # Update statistics
-            self.stats["jobs_processed"] += 1
-            self.stats["last_job_time"] = datetime.now(timezone.utc)
-
-        except Exception as e:
-            logging.exception(
-                f"Worker {self.worker_id} encountered an error processing job {job_id}"
+            await self._dispatch_job(queue_name, job_type, payload, job_tracker_instance, job_tracer)
+            
+            # Always complete (matches your current behavior even when dispatch no-ops)
+            await self.queue_service.complete_job(
+                job,
+                job_tracker_instance=job_tracker_instance,
+                job_tracer=job_tracer,
             )
+            
+            self._mark_success()
+        
+        except Exception as e:
+            logging.exception(f"Worker {self.worker_id} encountered an error processing job {job_id}")
             self.stats["jobs_failed"] += 1
-
-            # Mark job as failed with error details
-            is_perma_failure = False
-            try:
-                if not job.get("pgmq_msg_id"):
-                    logging.error("No pgmq_msg_id found in job data")
-                else:
-                    is_perma_failure, _ = await self.queue_service.fail_job(job, e, job_tracker_instance=job_tracker_instance, job_tracer=job_tracer, error_trace=traceback.format_exc())
-            except Exception as internal_fail_job_exception:
-                log_summary = f"Failed to fail job {job_id}"
-                logging.exception(log_summary)
-                
-                if job_tracer and is_perma_failure:
-                    job_tracer.record_error(
-                        summary = log_summary,
-                        exc=internal_fail_job_exception,
-                    )
-                
+            await self._fail_job_safe(job, err=e, tracker=job_tracker_instance, job_tracer=job_tracer)
+        
         finally:
             self.stats["current_job"] = None
-            
-            try:
-                await self.send_audit_email(job_tracer)
-            except Exception:
-                logging.exception("Error occurred while trying to send an email")
+            await self.send_audit_email(job_tracer)
     
+    def _seed_tracer(self, job_tracer, payload: Dict[str, Any], job_type: str) -> None:
+        if not job_tracer:
+            return
+        job_tracer.add_metadata(
+            repo_id=payload.get("repo_id"),
+            user_id=payload.get("user_id"),
+            job_context_id=payload.get("context_id"),
+            job_type=job_type,
+            repository_branch=payload.get("branch"),
+        )
+    
+    async def _dispatch_job(self, queue_name: str, job_type: str, payload: Dict[str, Any],
+                            tracker, job_tracer) -> None:
+        """No-ops when queue/type don’t match; keeps the main flow branch-free."""
+        if queue_name != "processing" or job_type not in ("analyze", "process"):
+            return
+        if tracker:
+            await tracker.start()
+        await self.message_handler.handle_processing_message(
+            payload, tracker, job_tracer=job_tracer
+        )
+    
+    def _mark_success(self) -> None:
+        self.stats["jobs_processed"] += 1
+        self.stats["last_job_time"] = datetime.now(timezone.utc)
+    
+    async def _fail_job_safe(self, job: Dict[str, Any], err: Exception, tracker, job_tracer) -> None:
+        """Fail the job if possible; log/tracer on any internal failure without nesting in the caller."""
+        is_perma_failure = False
+        pgmq_id = job.get("pgmq_msg_id")
+        if not pgmq_id:
+            logging.error("No pgmq_msg_id found in job data")
+            # We can still record context for visibility
+            if job_tracer:
+                job_tracer.record_error(summary="Missing pgmq_msg_id", exc=err)
+            return
+        
+        try:
+            is_perma_failure, _ = await self.queue_service.fail_job(
+                job,
+                err,
+                job_tracker_instance=tracker,
+                job_tracer=job_tracer,
+                error_trace=traceback.format_exc(),
+            )
+        except Exception as internal_fail_job_exception:
+            logging.exception(f"Failed to fail job {job.get('id', 'unknown')}")
+            if job_tracer and is_perma_failure:
+                job_tracer.record_error(
+                    summary="Failed while marking job as failed",
+                    exc=internal_fail_job_exception,
+                )
+        
     async def send_audit_email(self, job_tracer):
-        if job_tracer:
-            
-            if job_tracer.has_error:
-                is_failure_email = True
-                job_tracer.mark_job_settled()
-            else:
-                if not job_tracer.user_email:
+        try:
+            if job_tracer:
+                
+                if job_tracer.has_error:
                     is_failure_email = True
-                    job_tracer.record_error(
-                        summary="No user email has been provided to send the email to",
-                    )
+                    job_tracer.mark_job_settled()
                 else:
-                    is_failure_email = False
+                    if not job_tracer.user_email:
+                        is_failure_email = True
+                        job_tracer.record_error(
+                            summary="No user email has been provided to send the email to",
+                        )
+                    else:
+                        is_failure_email = False
+                    
+                    job_tracer.mark_job_settled()
                 
-                job_tracer.mark_job_settled()
-            
-            serialized_model = job_tracer.model_dump()
-            
-            if is_failure_email:
-                if not settings.mail.MAIL_AUDIT_RECIPIENTS:
-                    raise RuntimeError("MAIL_AUDIT_RECIPIENTS is not configured")
+                serialized_model = job_tracer.model_dump()
                 
-                context = ProjectAnalysisFailure(
-                    repository_html_url=serialized_model["repository_html_url"],
-                    user_email=serialized_model["user_email"],
-                    repository_branch=serialized_model["repository_branch"],
-                    job_context_id=serialized_model["job_context_id"],
-                    job_type=serialized_model["job_type"],
-                    job_queued_at=serialized_model["job_queued_at"],
-                    job_started_at=serialized_model["job_started_at"],
-                    job_finished_at=serialized_model["job_finished_at"],
-                    job_settled_at=serialized_model["job_settled_at"],
-                    error_type=serialized_model["error_type"],
-                    error_summary=serialized_model["error_summary"],
-                    error_chain=serialized_model["error_chain"],
-                    run_ms=serialized_model["run_ms"],
-                    total_ms=serialized_model["total_ms"],
-                    user_id=serialized_model["user_id"],
-                    repo_id=serialized_model["repo_id"],
+                if is_failure_email:
+                    if not settings.mail.MAIL_AUDIT_RECIPIENTS:
+                        raise RuntimeError("MAIL_AUDIT_RECIPIENTS is not configured")
+                    
+                    context = ProjectAnalysisFailure(
+                        repository_html_url=serialized_model["repository_html_url"],
+                        user_email=serialized_model["user_email"],
+                        repository_branch=serialized_model["repository_branch"],
+                        job_context_id=serialized_model["job_context_id"],
+                        job_type=serialized_model["job_type"],
+                        job_queued_at=serialized_model["job_queued_at"],
+                        job_started_at=serialized_model["job_started_at"],
+                        job_finished_at=serialized_model["job_finished_at"],
+                        job_settled_at=serialized_model["job_settled_at"],
+                        error_type=serialized_model["error_type"],
+                        error_summary=serialized_model["error_summary"],
+                        error_chain=serialized_model["error_chain"],
+                        run_ms=serialized_model["run_ms"],
+                        total_ms=serialized_model["total_ms"],
+                        user_id=serialized_model["user_id"],
+                        repo_id=serialized_model["repo_id"],
+                    )
+                    
+                    email_dispatcher = get_email_dispatcher()
+                    await email_dispatcher.send_templated_html(
+                        to=settings.mail.MAIL_AUDIT_RECIPIENTS,
+                        template=Template.PROJECT_ANALYSIS_FAILURE,
+                        context=context,
+                    )
+    
+                context = ProjectAnalysisSuccess(
+                    repository_html_url=serialized_model.get("repository_html_url"),
+                    repository_branch=serialized_model.get("repository_branch"),
+                    job_type=serialized_model.get("job_type"),
+                    job_queued_at=serialized_model.get("job_queued_at")
                 )
                 
                 email_dispatcher = get_email_dispatcher()
                 await email_dispatcher.send_templated_html(
-                    to=settings.mail.MAIL_AUDIT_RECIPIENTS,
-                    template=Template.PROJECT_ANALYSIS_FAILURE,
+                    to=[job_tracer.user_email],
+                    template=Template.PROJECT_ANALYSIS_SUCCESS,
                     context=context,
                 )
-
-            context = ProjectAnalysisSuccess(
-                repository_html_url=serialized_model.get("repository_html_url"),
-                repository_branch=serialized_model.get("repository_branch"),
-                job_type=serialized_model.get("job_type"),
-                job_queued_at=serialized_model.get("job_queued_at")
-            )
-            
-            email_dispatcher = get_email_dispatcher()
-            await email_dispatcher.send_templated_html(
-                to=[job_tracer.user_email],
-                template=Template.PROJECT_ANALYSIS_SUCCESS,
-                context=context,
-            )
-            
+        except Exception:
+            logging.exception("Error occurred while trying to send an email")
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Get worker statistics"""
-        uptime = None
-        if self.stats["start_time"]:
-            uptime = (
-                datetime.now(timezone.utc) - self.stats["start_time"]
-            ).total_seconds()
-
-        return {
-            **self.stats,
-            "worker_id": self.worker_id,
-            "running": self.running,
-            "uptime_seconds": uptime,
-        }
+    
 
 
 class WorkerHealthMonitor:
