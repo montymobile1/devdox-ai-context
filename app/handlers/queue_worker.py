@@ -66,58 +66,66 @@ class QueueWorker:
         # Wait for current job to complete (with timeout)
         if self.stats["current_job"]:
             await asyncio.sleep(5)  # Grace period
-
-    async def _worker_loop(self, queue_name: str, job_types: list, enable_job_tracer:bool=True):
-        """Worker loop for processing specific queue with job types"""
-
+    
+    async def _worker_loop(self, queue_name: str, job_types: list[str], enable_job_tracer: bool = True):
+        """Worker loop for processing specific queue with job types."""
         consecutive_failures = 0
         max_failures = 5
-
+        poll_sleep = settings.QUEUE_POLLING_INTERVAL_SECONDS or 5
+        
         while self.running:
             try:
-                
-                can_claim = False
-                tracked_job = None
-                
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
-                if job:
-                    if self.job_tracker_manager:
-                        
-                        claim_result = await self.job_tracker_manager.try_claim(
-                            worker_id=self.worker_id,
-                            queue_name=queue_name,
-                            message_id=job.get("id")
-                        )
-                        
-                        can_claim = claim_result.qualifies_for_tracking
-                        tracked_job = claim_result.tracker
-                    else:
-                        can_claim = True
+                if not job:
+                    await asyncio.sleep(poll_sleep)
+                    continue
                 
-                if job and can_claim:
-                    consecutive_failures = 0  # Reset failure counter
-                    
-                    if enable_job_tracer:
-                        job_tracer = JobTraceMetaData()
-                    else:
-                        job_tracer = None
-                    
-                    await self._process_job(queue_name, job, job_tracker_instance=tracked_job, job_tracer=job_tracer)
-                else:
-                    # No jobs available, wait before checking again
-                    await asyncio.sleep(settings.QUEUE_POLLING_INTERVAL_SECONDS or 5)
-
+                tracker = await self._try_claim(job, queue_name)
+                if tracker is False:                     # explicitly not allowed to run
+                    await asyncio.sleep(poll_sleep)
+                    continue
+                
+                job_tracer = JobTraceMetaData() if enable_job_tracer else None
+                
+                await self._process_job(
+                    queue_name,
+                    job,
+                    job_tracker_instance=(tracker or None),
+                    job_tracer=job_tracer,
+                )
+                
+                consecutive_failures = 0  # success → reset
             except Exception:
-                
                 consecutive_failures += 1
-
-                # Exponential backoff for consecutive failures
-                if consecutive_failures >= max_failures:
+                if await self._backoff_or_stop(consecutive_failures, max_failures):
                     break
-
-                backoff_time = min(60, 2**consecutive_failures)
-                await asyncio.sleep(backoff_time)
-
+    
+    async def _try_claim(self, job: dict, queue_name: str):
+        """
+        Returns:
+          - tracker object if claimed & tracked,
+          - None if no tracking manager (still allowed to run),
+          - False if not allowed to run (failed claim).
+        """
+        if not self.job_tracker_manager:
+            return None
+        
+        result = await self.job_tracker_manager.try_claim(
+            worker_id=self.worker_id,
+            queue_name=queue_name,
+            message_id=job.get("id"),
+        )
+        return result.tracker if result.qualifies_for_tracking else False
+    
+    
+    async def _backoff_or_stop(self, failures: int, max_failures: int) -> bool:
+        """Sleep with exponential backoff. Return True if we should stop the loop."""
+        if failures >= max_failures:
+            return True
+        await asyncio.sleep(min(60, 2 ** failures))
+        return False
+    
+    
     async def _process_job(self, queue_name: str, job: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, job_tracer:Optional[JobTraceMetaData]=None):
         """Process a single job with comprehensive error handling and monitoring"""
         job_id = job.get("id", "unknown")
