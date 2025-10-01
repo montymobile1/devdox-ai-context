@@ -406,7 +406,7 @@ class SupabaseQueue:
         
         # Guard: without msg_id we can't delete/archive; log and record
         if not msg_id:
-            return await self._handle_missing_msg_id(job_data, error, job_tracer)
+            return self._handle_missing_msg_id(job_data, error, job_tracer)
         
         # Retry path (early return)
         if self._should_retry(retry, attempts, max_attempts):
@@ -534,7 +534,7 @@ class SupabaseQueue:
         
         return (True, handled_ok)  # permanent, maybe handled_ok False if archive failed
     
-    async def _handle_missing_msg_id(
+    def _handle_missing_msg_id(
             self,
             job_data: Dict[str, Any],
             error: BaseException,
