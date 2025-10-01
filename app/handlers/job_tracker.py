@@ -28,7 +28,7 @@ from typing import NamedTuple, Optional
 
 from models_src.dto.queue_job_claim_registry import QueueProcessingRegistryRequestDTO, \
     QueueProcessingRegistryResponseDTO
-from models_src.models.queue_job_claim_registry import QRegistryStat, queue_processing_registry_one_claim_unique, QueueProcessingRegistry
+from models_src.models.queue_job_claim_registry import QRegistryStat, queue_processing_registry_one_claim_unique
 from models_src.repositories.queue_job_claim_registry import TortoiseQueueProcessingRegistryStore
 from tortoise.exceptions import IntegrityError
 
@@ -62,7 +62,7 @@ class JobTracker:
             self, worker_id: str, queue_name: str,
             tracked_claim:QueueProcessingRegistryResponseDTO,
             initial_step: Optional[JobLevels] = None,
-            queue_processing_registry_store=TortoiseQueueProcessingRegistryStore()
+            queue_processing_registry_store=None
     ):
         """
         __tracked_claim: The ORM database Object of the claimed job.
@@ -72,7 +72,7 @@ class JobTracker:
         __queue_processing_registry_store: Repository for queue job tracker
         """
         self.__tracked_claim: QueueProcessingRegistryResponseDTO = tracked_claim
-        self.__queue_processing_registry_store = queue_processing_registry_store
+        self.__queue_processing_registry_store = queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
         self.__worker_id = worker_id
         self.__queue_name = queue_name
         self.__step = initial_step
@@ -104,7 +104,9 @@ class JobTracker:
             id=str(self.tracked_claim.id),
             step=step.value
         )
-
+        
+        self.__step = step
+        
 
     async def start(self):
         """
@@ -152,6 +154,9 @@ class JobTracker:
             status=QRegistryStat.COMPLETED,
             step=JobLevels.DONE.value
         )
+        
+        self.__step = JobLevels.DONE
+        
 
 class ClaimResult(NamedTuple):
     """
