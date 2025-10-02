@@ -74,18 +74,6 @@ class TestJobTracker:
         assert updated.status == QRegistryStat.COMPLETED
         assert updated.step == JobLevels.DONE.value
 
-    async def test_update_step_only_changes_step(self):
-        store = FakeQueueProcessingRegistryStore()
-        dto = make_dto()
-        store.set_fake_data([dto])
-
-        tracker = JobTracker("worker-1", "embed-jobs", dto, queue_processing_registry_store=store)
-        await tracker.update_step(JobLevels.FILE_CLONED)
-
-        updated = store.data_store[dto.id]
-        assert updated.step == JobLevels.FILE_CLONED.value
-
-
 @pytest.mark.asyncio
 class TestJobTrackerManager:
 

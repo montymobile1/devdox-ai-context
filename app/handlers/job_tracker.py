@@ -40,28 +40,22 @@ class JobLevels(str, Enum):
     Each step represents a logical phase in the job processing pipeline.
     The values are persisted in the database for tracking progress.
     """
-    START = "start"
-    FILE_CLONED = "file_cloned"
-    GENERATE_EMBEDS = "generate_embeddings"
-    STORE_EMBEDS = "store_embeds_db"
-    DONE = "done"
-    
-    # ---- core pipeline ----
-    PRECHECKS_PASSED = "prechecks_passed"       # repo/user inputs validated
-    GIT_AUTHENTICATED = "git_authenticated"     # token decrypted + client built
-    REPO_DIR_PREPARED = "repo_dir_prepared"     # local path cleaned/ready
-    FILES_CHUNKED = "files_chunked"             # text splitter finished
-    REPO_ANALYZED = "repo_analyzed"             # your LLM/system analysis saved
-    CONTEXT_UPDATED = "context_updated"         # context row updated (completed)
-
-    # ---- optional verbose (enable when needed) ----
-    DEPENDENCIES_EXTRACTED = "dependencies_extracted"
-    README_FOUND = "readme_found"
-    README_ANALYZED = "readme_analyzed"
-
-    # ---- optional skip/failure hints (diagnostic, not a status) ----
-    SKIPPED_ALREADY_PROCESSED = "skipped_already_processed"
-    REPO_NOT_FOUND = "repo_not_found"
+    START            = "start"             # set on successful claim
+    DISPATCH         = "dispatch"          # worker is dispatching the job
+    PROCESSING       = "processing"        # message handler took over
+    PRECHECKS        = "prechecks"         # validating inputs / fetching repo record
+    AUTH             = "auth"              # building authenticated git client
+    WORKDIR          = "workdir"           # preparing local work directory
+    SOURCE_FETCH     = "source_fetch"      # cloning / loading repo contents
+    CHUNKING         = "chunking"          # splitting docs/files into chunks
+    ANALYSIS         = "analysis"          # repository analysis phase (README/deps/etc.)
+    EMBEDDINGS       = "embeddings"        # embedding generation phase
+    VECTOR_STORE     = "vector_store"      # persisting vectors/metadata
+    CONTEXT_FINALIZE = "context_finalize"  # updating domain context (status, counts)
+    DB_FLUSH         = "db_flush"          # any final DB writes/housekeeping
+    QUEUE_ACK        = "queue_ack"         # acknowledging/finishing the queue message
+    NOTIFICATIONS    = "notifications"     # emails/audit notifications phase
+    DONE             = "done"              # terminal phase
     
 
 class JobTracker:
