@@ -44,8 +44,8 @@ dependencies = [
     "langchain-together==0.3.0",
     "together==1.5.17",
     "tiktoken==0.7",
-    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@8259a91",
-    "devdox-ai-git @ git+https://github.com/montymobile1/devdox-ai-git@DEV-17-move-all-the-shared-github-git-lab-logic-to-devdox-ai-git",
+    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@466a875",
+    "devdox-ai-git @ git+https://github.com/montymobile1/devdox-ai-git@32cf2e7",
     "devdox-ai-encryption @ git+https://github.com/montymobile1/devdox-ai-encryption.git@4eefae1",
 ]
 
