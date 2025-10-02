@@ -48,10 +48,6 @@ class FakePGMQueue:
         # emulate PGMQ int ID
         return len(self.sent)
 
-    async def send_delay(self, queue, message, delay):
-        self.sent.append((queue, message, delay, "send_delay"))
-        return len(self.sent)
-
     async def read_batch(self, queue, vt, batch_size):
         self.read_calls.append((queue, vt, batch_size))
         return self._read_return
@@ -159,7 +155,7 @@ async def test_enqueue_with_delay_uses_send_delay_and_future_schedule(sut, fake_
     job_id = await sut.enqueue("qB", {"k": "v"}, delay_seconds=30)
     assert job_id == "1"
     _, msg, delay, via = fake_queue.sent[0]
-    assert via == "send_delay"
+    assert via == "send"
     assert delay == 30
     scheduled = datetime.fromisoformat(msg["scheduled_at"].replace("Z", "+00:00"))
     assert scheduled >= now + timedelta(seconds=29)

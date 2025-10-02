@@ -113,7 +113,7 @@ class SupabaseQueue:
 
             # Send job to queue with delay if specified
             if delay_seconds > 0:
-                result: int = await self.queue.send_delay(
+                result: int = await self.queue.send(
                     queue_name, job_data, delay_seconds
                 )
             else:
