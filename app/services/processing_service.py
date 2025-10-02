@@ -25,7 +25,7 @@ from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
-from app.handlers.job_tracker import JobLevels, JobTracker
+from app.handlers.job_tracker import JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -389,9 +389,6 @@ class ProcessingService:
             )
             if not repo:
                 
-                if job_tracker_instance:
-                    await job_tracker_instance.update_step(JobLevels.REPO_NOT_FOUND)
-                
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
@@ -400,9 +397,6 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository not found",
                 )
-            
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.PRECHECKS_PASSED)
             
             if job_tracer:
                 job_tracer.add_metadata(
@@ -418,28 +412,16 @@ class ProcessingService:
                 git_token=job_payload["git_token"],
             )
             
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.GIT_AUTHENTICATED)
-            
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
-            
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.REPO_DIR_PREPARED)
             
             files = self.clone_and_process_repository(
                 repo.html_url, str(relative_path), job_payload.get("branch", "main")
             )
             
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.FILE_CLONED)
-            
             repo_local = Repo(str(relative_path))
             commit_hash = repo_local.head.commit.hexsha
             if repo.last_commit == commit_hash and repo.status == "failed":
-                
-                if job_tracker_instance:
-                    await job_tracker_instance.update_step(JobLevels.SKIPPED_ALREADY_PROCESSED)
                 
                 return ProcessingResult(
                     success=False,
@@ -452,17 +434,11 @@ class ProcessingService:
             # Process files into chunks
             chunks = self._process_files_to_chunks(files)
             
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.FILES_CHUNKED)
-            
             _ = await self.analyze_repository(chunks, relative_path, repo.language, repo.id, job_tracker_instance=job_tracker_instance)
             embeddings = self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
-            
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.GENERATE_EMBEDS)
             
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
@@ -471,9 +447,6 @@ class ProcessingService:
                 data=embeddings,
                 commit_number=commit_hash,
             )
-            
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.STORE_EMBEDS)
             
             # Update context completion
             end_time = datetime.now(timezone.utc)
@@ -487,9 +460,6 @@ class ProcessingService:
                 total_chunks=len(chunks),
                 total_embeddings=len(embeddings),
             )
-            
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.CONTEXT_UPDATED)
             
             return ProcessingResult(
                 success=True,
@@ -767,20 +737,12 @@ class ProcessingService:
             # Extract dependency files
             dependency_files = self._extract_dependency_files(chunks, relative_path, languages)
             
-            if dependency_files and job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.DEPENDENCIES_EXTRACTED)
-            
             # Extract and analyze README
             readme_content = self._extract_readme_content(chunks, relative_path)
             readme_analysis = None
             if readme_content:
-                if job_tracker_instance:
-                    await job_tracker_instance.update_step(JobLevels.README_FOUND)
                 readme_analysis = self._analyze_readme_content(readme_content)
-                
-                if readme_content and job_tracker_instance:
-                        await job_tracker_instance.update_step(JobLevels.README_ANALYZED)
-                
+            
             if not dependency_files and not readme_content:
                 logger.info("No dependency files or README found for analysis")
                 return None
@@ -809,9 +771,6 @@ class ProcessingService:
                 repo_system_reference=analysis_content,
             )
             
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.REPO_ANALYZED)
-
             logger.info(f"Repository analysis saved with ID: {id}")
             return True
 
