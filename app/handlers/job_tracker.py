@@ -52,11 +52,9 @@ class JobLevels(str, Enum):
     EMBEDDINGS       = "embeddings"        # embedding generation phase
     VECTOR_STORE     = "vector_store"      # persisting vectors/metadata
     CONTEXT_FINALIZE = "context_finalize"  # updating domain context (status, counts)
-    DB_FLUSH         = "db_flush"          # any final DB writes/housekeeping
     QUEUE_ACK        = "queue_ack"         # acknowledging/finishing the queue message
-    NOTIFICATIONS    = "notifications"     # emails/audit notifications phase
+    AUDIT_NOTIFICATIONS    = "audit_notifications"     # emails/audit notifications phase
     DONE             = "done"              # terminal phase
-    
 
 class JobTracker:
     

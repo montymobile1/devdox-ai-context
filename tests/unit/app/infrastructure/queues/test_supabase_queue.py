@@ -73,6 +73,7 @@ class FakeJobTracker:
         self.completed_calls = 0
         self.retry_calls = []
         self.fail_calls = []
+        self.update_step_calls = []
         self._fail_on = fail_on or set()  # {"completed", "retry", "fail"}
 
     async def completed(self):
@@ -89,7 +90,13 @@ class FakeJobTracker:
         self.fail_calls.append(message_id)
         if "fail" in self._fail_on:
             raise RuntimeError("boom-fail")
-
+    
+    async def update_step(self, step):
+        # Accept any type (enum/string) to keep the fake decoupled from the real JobLevels
+        self.update_step_calls.append(step)
+        if "update_step" in self._fail_on:
+            raise RuntimeError("boom-update_step")
+    
 class FakeJobTracer:
     def __init__(self):
         self.errors = []
