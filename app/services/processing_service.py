@@ -760,7 +760,7 @@ class ProcessingService:
             return None
 
 
-    async def analyze_repository(self, chunks: List[Document], relative_path: Path, languages: List[str],  id: str | UUID, job_tracker_instance) -> Optional[
+    async def analyze_repository(self, chunks: List[Document], relative_path: Path, languages: List[str],  id: str | UUID, job_tracker_instance:Optional[JobTracker]=None) -> Optional[
         bool|None]:
         """Analyze repository based on dependency files and save to database"""
         try:
