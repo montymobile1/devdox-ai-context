@@ -25,7 +25,7 @@ from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
-from app.handlers.job_tracker import JobTracker
+from app.handlers.job_tracker import JobLevels, JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +382,14 @@ class ProcessingService:
         start_time = datetime.now(timezone.utc)
 
         try:
+            
+            # -----------------------
+            # PRECHECKS
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.PRECHECKS)
+            
             # Get repository information
 
             repo = await self.repo_repository.find_by_repo_id_user_id(
@@ -402,7 +410,13 @@ class ProcessingService:
                 job_tracer.add_metadata(
                     repository_html_url=repo.html_url,
                 )
-                
+            
+            # -----------------------
+            # AUTH
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.AUTH)
             
             # Get git credentials
             _ = await self._get_authenticated_git_client(
@@ -412,8 +426,21 @@ class ProcessingService:
                 git_token=job_payload["git_token"],
             )
             
+            # -----------------------
+            # WORKDIR
+            # -----------------------
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.WORKDIR)
+            
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
+            
+            # -----------------------
+            # SOURCE_FETCH
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.SOURCE_FETCH)
             
             files = self.clone_and_process_repository(
                 repo.html_url, str(relative_path), job_payload.get("branch", "main")
@@ -431,14 +458,39 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository already processed",
                 )
+            
+            # -----------------------
+            # CHUNKING
+            # -----------------------
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.CHUNKING)
+            
             # Process files into chunks
             chunks = self._process_files_to_chunks(files)
             
+            # -----------------------
+            # ANALYSIS
+            # -----------------------
             _ = await self.analyze_repository(chunks, relative_path, repo.language, repo.id, job_tracker_instance=job_tracker_instance)
+            
+            # -----------------------
+            # EMBEDDINGS
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.EMBEDDINGS)
+            
             embeddings = self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
+            
+            # -----------------------
+            # VECTOR_STORE
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.VECTOR_STORE)
             
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
@@ -451,7 +503,13 @@ class ProcessingService:
             # Update context completion
             end_time = datetime.now(timezone.utc)
             processing_time = (end_time - start_time).total_seconds()
-
+            
+            # -----------------------
+            # CONTEXT_FINALIZE
+            # -----------------------
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.CONTEXT_FINALIZE)
+            
             await self.context_repository.update_status(
                 str(repo.id),
                 "completed",
@@ -734,6 +792,9 @@ class ProcessingService:
         bool|None]:
         """Analyze repository based on dependency files and save to database"""
         try:
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.ANALYSIS)
+            
             # Extract dependency files
             dependency_files = self._extract_dependency_files(chunks, relative_path, languages)
             

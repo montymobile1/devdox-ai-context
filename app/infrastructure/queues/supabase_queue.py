@@ -7,7 +7,7 @@ from tembo_pgmq_python.messages import Message
 
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 
-from app.handlers.job_tracker import JobTracker
+from app.handlers.job_tracker import JobLevels, JobTracker
 
 logger = logging.getLogger(__name__)
 

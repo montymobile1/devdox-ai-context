@@ -15,7 +15,7 @@ from app.core.mail_container import get_email_dispatcher
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 from app.infrastructure.mailing_service import Template
 from app.infrastructure.mailing_service.models.context_shapes import ProjectAnalysisSuccess
-from app.handlers.job_tracker import JobTracker, JobTrackerManager
+from app.handlers.job_tracker import JobLevels, JobTracker, JobTrackerManager
 
 
 class QueueWorker:
@@ -166,9 +166,17 @@ class QueueWorker:
         self.stats["current_job"] = job_id
         
         try:
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.DISPATCH)
+            
             await self._dispatch_job(queue_name, job_type, payload, job_tracker_instance, job_tracer)
             
             # Always complete (matches your current behavior even when dispatch no-ops)
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.QUEUE_ACK)
+            
             await self.queue_service.complete_job(
                 job,
                 job_tracker_instance=job_tracker_instance,
@@ -184,7 +192,11 @@ class QueueWorker:
         
         finally:
             self.stats["current_job"] = None
-            await self.send_audit_email(job_tracer)
+            
+            if job_tracer:
+                if job_tracker_instance:
+                    await job_tracker_instance.update_step(JobLevels.AUDIT_NOTIFICATIONS)
+                await self.send_audit_email(job_tracer)
     
     def _seed_tracer(self, job_tracer, payload: Dict[str, Any], job_type: str) -> None:
         if not job_tracer:
@@ -242,7 +254,6 @@ class QueueWorker:
     async def send_audit_email(self, job_tracer):
         try:
             if job_tracer:
-                
                 if job_tracer.has_error:
                     is_failure_email = True
                     job_tracer.mark_job_settled()

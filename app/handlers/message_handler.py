@@ -8,7 +8,7 @@ from app.services.auth_service import AuthService
 from app.services.processing_service import ProcessingService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
-from app.handlers.job_tracker import JobTracker
+from app.handlers.job_tracker import JobLevels, JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,9 @@ class MessageHandler:
             # Process the repository
             if job_tracer:
                 job_tracer.mark_job_started()
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.PROCESSING)
             
             result = await self.processing_service.process_repository(job_payload, job_tracker_instance, job_tracer=job_tracer)
             
