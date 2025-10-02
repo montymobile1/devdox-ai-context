@@ -67,7 +67,7 @@ class JobLevels(str, Enum):
 class JobTracker:
     
     """
-    Represents a claimed job and provides operations to update its state.
+    Represents a claimed job instance and provides operations to update its state.
 
     This class wraps a `QueueProcessingRegistry` record and exposes async methods
     to manage status transitions and job step updates.
@@ -244,5 +244,5 @@ class JobTrackerManager:
 
             raise
         except Exception:
-            logging.exception("Exception occurred while attempted to try_claim")
+            logging.exception("Exception occurred while attempting to try_claim")
             raise
