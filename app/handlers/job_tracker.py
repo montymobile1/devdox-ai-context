@@ -44,9 +44,25 @@ class JobLevels(str, Enum):
     FILE_CLONED = "file_cloned"
     GENERATE_EMBEDS = "generate_embeddings"
     STORE_EMBEDS = "store_embeds_db"
-    DB_SAVED = "db_saved"
     DONE = "done"
+    
+    # ---- core pipeline ----
+    PRECHECKS_PASSED = "prechecks_passed"       # repo/user inputs validated
+    GIT_AUTHENTICATED = "git_authenticated"     # token decrypted + client built
+    REPO_DIR_PREPARED = "repo_dir_prepared"     # local path cleaned/ready
+    FILES_CHUNKED = "files_chunked"             # text splitter finished
+    REPO_ANALYZED = "repo_analyzed"             # your LLM/system analysis saved
+    CONTEXT_UPDATED = "context_updated"         # context row updated (completed)
 
+    # ---- optional verbose (enable when needed) ----
+    DEPENDENCIES_EXTRACTED = "dependencies_extracted"
+    README_FOUND = "readme_found"
+    README_ANALYZED = "readme_analyzed"
+
+    # ---- optional skip/failure hints (diagnostic, not a status) ----
+    SKIPPED_ALREADY_PROCESSED = "skipped_already_processed"
+    REPO_NOT_FOUND = "repo_not_found"
+    
 
 class JobTracker:
     
