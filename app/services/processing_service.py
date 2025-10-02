@@ -767,7 +767,7 @@ class ProcessingService:
             # Extract dependency files
             dependency_files = self._extract_dependency_files(chunks, relative_path, languages)
             
-            if dependency_files:
+            if dependency_files and job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.DEPENDENCIES_EXTRACTED)
             
             # Extract and analyze README
