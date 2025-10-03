@@ -1,4 +1,3 @@
-# src/infrastructure/external_apis/git_clients.py
 from typing import Any
 
 from devdox_ai_git.git_managers import GitHubManager, GitLabManager
