@@ -1,102 +1,13 @@
-# src/infrastructure/external_apis/git_clients.py
-from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any
+
+from devdox_ai_git.git_managers import GitHubManager, GitLabManager
 
 from app.core.exceptions import exception_constants
-from github import Github
-import gitlab
 
-# Import the retrieve_git_fetcher_or_die function
 
 from app.core.config import GitHosting
 
 from app.core.exceptions.base_exceptions import DevDoxAPIException
-
-
-class GitClient(ABC):
-    @abstractmethod
-    async def get_repository_info(self, repo_url: str) -> Dict[str, Any]:
-        pass
-
-
-class GitHubClient(GitClient):
-    def __init__(self, token: str):
-        self.client = Github(token)
-
-    async def get_repository_info(self, repo_url: str) -> Dict[str, Any]:
-        """Get repository metadata"""
-        parts = repo_url.replace("https://github.com/", "").split("/")
-        owner, repo_name = parts[0], parts[1]
-
-        repo = self.client.get_repo(f"{owner}/{repo_name}")
-        return {
-            "name": repo.name,
-            "full_name": repo.full_name,
-            "description": repo.description,
-            "language": repo.language,
-            "default_branch": repo.default_branch,
-            "size": repo.size,
-            "created_at": repo.created_at,
-            "updated_at": repo.updated_at,
-        }
-
-    def _is_supported_file(self, filename: str) -> bool:
-        """Check if file type is supported"""
-        extensions = {
-            ".py",
-            ".js",
-            ".ts",
-            ".java",
-            ".go",
-            ".rs",
-            ".cpp",
-            ".c",
-            ".hpp",
-            ".h",
-            ".rb",
-            ".php",
-            ".cs",
-        }
-        return any(filename.endswith(ext) for ext in extensions)
-
-
-class GitLabClient(GitClient):
-    def __init__(self, token: str):
-        self.client = gitlab.Gitlab("https://gitlab.com", private_token=token)
-
-    async def get_repository_info(self, repo_url: str) -> Dict[str, Any]:
-        """Get repository metadata"""
-        project_path = repo_url.replace("https://gitlab.com/", "")
-        project = self.client.projects.get(project_path)
-
-        return {
-            "name": project.name,
-            "full_name": project.path_with_namespace,
-            "description": project.description,
-            "default_branch": project.default_branch,
-            "created_at": project.created_at,
-            "updated_at": project.last_activity_at,
-        }
-
-    def _is_supported_file(self, filename: str) -> bool:
-        """Check if file type is supported"""
-        extensions = {
-            ".py",
-            ".js",
-            ".ts",
-            ".java",
-            ".go",
-            ".rs",
-            ".cpp",
-            ".c",
-            ".hpp",
-            ".h",
-            ".rb",
-            ".php",
-            ".cs",
-        }
-        return any(filename.endswith(ext) for ext in extensions)
-
 
 def retrieve_git_fetcher_or_die(
     store, provider: GitHosting | str, include_data_mapper: bool = True
@@ -146,7 +57,7 @@ class GitClientFactory:
 
         self.store = store
 
-    def create_client(self, provider: GitHosting | str, token: str) -> GitClient:
+    def create_client(self, provider: GitHosting | str, token: str):
         """
 
         Create a git client using the retrieve_git_fetcher_or_die function.
@@ -204,10 +115,10 @@ class GitClientFactory:
             # Create the appropriate client based on provider
 
             if provider_enum == GitHosting.GITHUB:
-                return GitHubClient(token)
+                return GitHubManager().authenticate(access_token=token)
 
             elif provider_enum == GitHosting.GITLAB:
-                return GitLabClient(token)
+                return GitLabManager().authenticate(access_token=token)
 
             else:
                 # This should be caught by retrieve_git_fetcher_or_die, but as a fallback

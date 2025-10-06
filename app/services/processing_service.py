@@ -4,6 +4,8 @@ from pathlib import Path
 import shutil
 import uuid
 from uuid import UUID
+
+from devdox_ai_git.repo_fetcher import RepoFetcher
 from git import Repo
 from together import Together
 from datetime import datetime, timezone
@@ -19,7 +21,6 @@ from app.infrastructure.database.repositories import (
     CodeChunksRepositoryHelper,
 )
 from app.infrastructure.external_apis.git_clients import GitClientFactory
-from app.handlers.utils.repo_fetcher import RepoFetcher
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
