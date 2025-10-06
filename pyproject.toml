@@ -24,7 +24,7 @@ dependencies = [
     "fastapi==0.115.12",
     "fastapi-cli==0.0.7",
     "uvicorn==0.34.2",
-    "uvloop==0.21.0",
+    "uvloop==0.21.0;sys_platform != 'win32'",
     "pydantic==2.11.4",
     "pydantic-settings==2.5.2",
     "starlette>=0.37.2",
@@ -44,8 +44,8 @@ dependencies = [
     "langchain-together==0.3.0",
     "together==1.5.17",
     "tiktoken==0.7",
-    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@466a875",
-    "devdox-ai-git @ git+https://github.com/montymobile1/devdox-ai-git@32cf2e7",
+    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@93fa32a",
+    "devdox-ai-git @ git+https://github.com/montymobile1/devdox-ai-git@e36ee1a",
     "devdox-ai-encryption @ git+https://github.com/montymobile1/devdox-ai-encryption.git@4eefae1",
 ]
 
