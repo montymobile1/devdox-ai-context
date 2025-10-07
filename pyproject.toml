@@ -44,7 +44,7 @@ dependencies = [
     "langchain-together==0.3.0",
     "together==1.5.17",
     "tiktoken==0.7",
-    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@ff74141",
+    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@a34f8d1",
     "devdox-ai-git @ git+https://github.com/montymobile1/devdox-ai-git@e36ee1a",
     "devdox-ai-encryption @ git+https://github.com/montymobile1/devdox-ai-encryption.git@4eefae1",
 ]
