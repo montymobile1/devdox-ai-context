@@ -400,6 +400,7 @@ class ProcessingService:
             repo = await self.repo_repository.find_by_repo_id_user_id(
                 str(job_payload["repo_id"]), str(job_payload["user_id"])
             )
+
             if not repo:
 
                 return ProcessingResult(
@@ -529,7 +530,6 @@ class ProcessingService:
                 total_chunks=len(chunks),
                 total_embeddings=len(embeddings),
             )
-
             return ProcessingResult(
                 success=True,
                 context_id=context_id,
@@ -819,7 +819,6 @@ class ProcessingService:
             readme_analysis = None
             if readme_content:
                 readme_analysis = self._analyze_readme_content(readme_content)
-
             if not dependency_files and not readme_content:
                 logger.info("No dependency files or README found for analysis")
                 return None
