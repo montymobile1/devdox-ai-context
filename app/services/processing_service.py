@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from app.infrastructure.database.repositories import (
     ContextRepositoryHelper,
     UserRepositoryHelper,
@@ -25,6 +25,7 @@ from encryption_src.fernet.service import FernetEncryptionHelper
 from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
+from app.handlers.job_tracker import JobLevels, JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -373,9 +374,7 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(
-        self, job_payload: Dict[str, Any], job_tracer: Optional[JobTraceMetaData] = None
-    ) -> ProcessingResult:
+    async def process_repository(self, job_payload: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, job_tracer:Optional[JobTraceMetaData] = None) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
@@ -383,12 +382,21 @@ class ProcessingService:
         start_time = datetime.now(timezone.utc)
 
         try:
+            
+            # -----------------------
+            # PRECHECKS
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.PRECHECKS)
+            
             # Get repository information
 
             repo = await self.repo_repository.find_by_repo_id_user_id(
                 str(job_payload["repo_id"]), str(job_payload["user_id"])
             )
             if not repo:
+                
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
@@ -397,12 +405,19 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository not found",
                 )
-
+            
             if job_tracer:
                 job_tracer.add_metadata(
                     repository_html_url=repo.html_url,
                 )
-
+            
+            # -----------------------
+            # AUTH
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.AUTH)
+            
             # Get git credentials
             _ = await self._get_authenticated_git_client(
                 job_tracer=job_tracer,
@@ -410,17 +425,31 @@ class ProcessingService:
                 git_provider=job_payload["git_provider"],
                 git_token=job_payload["git_token"],
             )
-
+            
+            # -----------------------
+            # WORKDIR
+            # -----------------------
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.WORKDIR)
+            
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
-
+            
+            # -----------------------
+            # SOURCE_FETCH
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.SOURCE_FETCH)
+            
             files = self.clone_and_process_repository(
-                repo.html_url, relative_path, job_payload.get("branch", "main")
+                repo.html_url, str(relative_path), job_payload.get("branch", "main")
             )
-
-            repo_local = Repo(relative_path)
+            
+            repo_local = Repo(str(relative_path))
             commit_hash = repo_local.head.commit.hexsha
             if repo.last_commit == commit_hash and repo.status == "failed":
+                
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
@@ -429,18 +458,40 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository already processed",
                 )
+            
+            # -----------------------
+            # CHUNKING
+            # -----------------------
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.CHUNKING)
+            
             # Process files into chunks
             chunks = self._process_files_to_chunks(files)
-
-            _ = await self.analyze_repository(
-                chunks, relative_path, repo.language, repo.id
-            )
-
+            
+            # -----------------------
+            # ANALYSIS
+            # -----------------------
+            _ = await self.analyze_repository(chunks, relative_path, repo.language, repo.id, job_tracker_instance=job_tracker_instance)
+            
+            # -----------------------
+            # EMBEDDINGS
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.EMBEDDINGS)
+            
             embeddings = self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
-
+            
+            # -----------------------
+            # VECTOR_STORE
+            # -----------------------
+            
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.VECTOR_STORE)
+            
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
                 repo_id=str(repo.id),
@@ -448,11 +499,17 @@ class ProcessingService:
                 data=embeddings,
                 commit_number=commit_hash,
             )
-
+            
             # Update context completion
             end_time = datetime.now(timezone.utc)
             processing_time = (end_time - start_time).total_seconds()
-
+            
+            # -----------------------
+            # CONTEXT_FINALIZE
+            # -----------------------
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.CONTEXT_FINALIZE)
+            
             await self.context_repository.update_status(
                 str(repo.id),
                 "completed",
@@ -461,6 +518,7 @@ class ProcessingService:
                 total_chunks=len(chunks),
                 total_embeddings=len(embeddings),
             )
+            
             return ProcessingResult(
                 success=True,
                 context_id=context_id,
@@ -729,25 +787,23 @@ class ProcessingService:
             logger.warning(f"Could not read dependency file {file_name}: {e}")
             return None
 
-    async def analyze_repository(
-        self,
-        chunks: List[Document],
-        relative_path: Path,
-        languages: List[str],
-        id: str | UUID,
-    ) -> Optional[bool | None]:
+
+    async def analyze_repository(self, chunks: List[Document], relative_path: Path, languages: List[str],  id: str | UUID, job_tracker_instance:Optional[JobTracker]=None) -> Optional[
+        bool|None]:
         """Analyze repository based on dependency files and save to database"""
         try:
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.ANALYSIS)
+            
             # Extract dependency files
-            dependency_files = self._extract_dependency_files(
-                chunks, relative_path, languages
-            )
-
+            dependency_files = self._extract_dependency_files(chunks, relative_path, languages)
+            
             # Extract and analyze README
             readme_content = self._extract_readme_content(chunks, relative_path)
             readme_analysis = None
             if readme_content:
                 readme_analysis = self._analyze_readme_content(readme_content)
+            
             if not dependency_files and not readme_content:
                 logger.info("No dependency files or README found for analysis")
                 return None
@@ -775,7 +831,7 @@ class ProcessingService:
                 str(id),
                 repo_system_reference=analysis_content,
             )
-
+            
             logger.info(f"Repository analysis saved with ID: {id}")
             return True
 
