@@ -388,9 +388,7 @@ class ProcessingService:
             repo = await self.repo_repository.find_by_repo_id_user_id(
                 job_payload["repo_id"], job_payload["user_id"]
             )
-            # if not repo or repo is None:
             if not repo:
-                print("repo line 395 ", repo)
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
