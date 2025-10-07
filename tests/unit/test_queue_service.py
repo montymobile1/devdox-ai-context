@@ -164,7 +164,7 @@ class TestSupabaseQueue:
         """Test enqueuing with delay"""
         payload = {"test": "data"}
         
-        supabase_queue.queue.send = AsyncMock(return_value="delayed_job_id")
+        supabase_queue.queue.send_delay = AsyncMock(return_value="delayed_job_id")
         
         job_id = await supabase_queue.enqueue(
             "processing",
@@ -173,7 +173,8 @@ class TestSupabaseQueue:
         )
         
         assert job_id == "delayed_job_id"
-        supabase_queue.queue.send.assert_called_once()
+        supabase_queue.queue.send_delay.assert_called_once()
+        supabase_queue.queue.send.assert_not_called()
     
     @pytest.mark.asyncio
     async def test_enqueue_with_exception(self, supabase_queue):
@@ -559,7 +560,7 @@ class TestSupabaseQueue:
         assert is_failed_perma is True
         assert operation_result is True
         supabase_queue.queue.archive.assert_called_once_with("processing", "msg_123")
-        supabase_queue.queue.send.assert_not_called()
+        supabase_queue.queue.send_delay.assert_not_called()
     
     @pytest.mark.asyncio
     async def test_fail_job_no_retry(self, supabase_queue):

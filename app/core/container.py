@@ -14,7 +14,6 @@ from app.services.auth_service import AuthService
 from encryption_src.fernet.service import FernetEncryptionHelper
 from app.services.processing_service import ProcessingService
 from app.core.config import settings
-from app.handlers.job_tracker import JobTrackerManager
 
 
 class Container(containers.DeclarativeContainer):
@@ -68,8 +67,4 @@ class Container(containers.DeclarativeContainer):
         auth_service=auth_service,
         processing_service=processing_service,
         queue_service=queue_service,
-    )
-    
-    job_tracker_factory = providers.Factory(
-        JobTrackerManager
     )
