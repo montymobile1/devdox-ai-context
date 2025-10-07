@@ -421,7 +421,6 @@ class ProcessingService:
             repo_local = Repo(relative_path)
             commit_hash = repo_local.head.commit.hexsha
             if repo.last_commit == commit_hash and repo.status == "failed":
-
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
@@ -679,6 +678,7 @@ class ProcessingService:
         processed_files = set()
         valid_languages = [lang for lang in languages if lang in DEPENDENCY_FILES]
 
+
         for chunk in chunks:
             file_name = self._get_clean_filename(chunk)
             # Skip if file already processed or invalid
@@ -693,6 +693,7 @@ class ProcessingService:
                 if dependency_file:
                     dependency_files.append(dependency_file)
                     processed_files.add(file_name)
+
 
         return dependency_files
 
