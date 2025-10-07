@@ -1,6 +1,7 @@
 """
 Edge case and error scenario tests
 """
+
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -144,7 +145,6 @@ class TestEdgeCases:
 class TestErrorRecoveryScenarios:
     """Test error recovery and resilience scenarios"""
 
-
     @pytest.mark.asyncio
     async def test_processing_service_recovery_from_git_failures(self):
         """Test processing service recovery from git operation failures"""
@@ -158,7 +158,7 @@ class TestErrorRecoveryScenarios:
 
         for repo in mock_repos.values():
             repo.update_status = AsyncMock()
-            repo.find_by_repo_id = AsyncMock()
+            repo.find_by_repo_id_user_id = AsyncMock()
 
         processing_service = ProcessingService(
             context_repository=mock_repos["context"],
@@ -289,7 +289,7 @@ class TestMemoryAndResourceManagement:
 
         for repo in mock_repos.values():
             repo.update_status = AsyncMock()
-            repo.find_by_repo_id = AsyncMock()
+            repo.find_by_repo_id_user_id = AsyncMock()
 
         processing_service = ProcessingService(
             context_repository=mock_repos["context"],
