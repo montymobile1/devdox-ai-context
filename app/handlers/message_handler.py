@@ -8,6 +8,7 @@ from app.services.auth_service import AuthService
 from app.services.processing_service import ProcessingService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
+from app.handlers.job_tracker import JobLevels, JobTracker
 
 logger = logging.getLogger(__name__)
 
@@ -25,18 +26,22 @@ class MessageHandler:
         self.processing_service = processing_service
         self.queue_service = queue_service
 
-    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None) -> None:
+    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, job_tracer:Optional[JobTraceMetaData] = None) -> None:
         """Handle repository processing message"""
-        
+
         try:
             # Process the repository
             if job_tracer:
                 job_tracer.mark_job_started()
             
-            result = await self.processing_service.process_repository(job_payload, job_tracer=job_tracer)
+            if job_tracker_instance:
+                await job_tracker_instance.update_step(JobLevels.PROCESSING)
+            
+            result = await self.processing_service.process_repository(job_payload, job_tracker_instance, job_tracer=job_tracer)
+            
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
-                
+
                 # Consume tokens based on actual usage
                 if result.chunks_created:
                     # Rough calculation: 1 token per chunk
@@ -53,7 +58,7 @@ class MessageHandler:
                         logger.error(
                             f"Callback failed for {job_payload['callback_url']}: {str(callback_error)}"
                         )
-                    
+
             else:
                 
                 log_message = f"Failed to process context {result.context_id}"
