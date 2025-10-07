@@ -95,7 +95,7 @@ class RepoRepositoryHelper:
         try:
             return await self._repo.find_by_repo_id_user_id(repo_id, user_id)
         except Exception:
-            logger.exception(exception_constants.ERROR_FINDING_REPO)
+            logger.exception(exception_constants.ERROR_USER_NOT_FOUND_BY_ID)
             return None
 
     async def find_by_repo_id(self, repo_id: str) -> Optional[RepoResponseDTO]:
