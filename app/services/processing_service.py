@@ -29,14 +29,14 @@ from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 logger = logging.getLogger(__name__)
 
 package_json_file = "package.json"
-package_json_lock_file="package-lock.json"
+package_json_lock_file = "package-lock.json"
 yarn_lock_file = "yarn.lock"
-build_gradle_file="build.gradle"
-gradle_lockfile_file="gradle.lockfile"
-settings_gradle_file="settings.gradle"
-gradle_properties_file="gradle.properties"
-podfile_lock_file="Podfile.lock"
-podfile_file="Podfile"
+build_gradle_file = "build.gradle"
+gradle_lockfile_file = "gradle.lockfile"
+settings_gradle_file = "settings.gradle"
+gradle_properties_file = "gradle.properties"
+podfile_lock_file = "Podfile.lock"
+podfile_file = "Podfile"
 
 DEPENDENCY_FILES = {
     # Backend Languages
@@ -112,7 +112,7 @@ DEPENDENCY_FILES = {
         "Package.swift",
         "Package.resolved",
         podfile_file,
-         podfile_lock_file,
+        podfile_lock_file,
         "Cartfile",
         "Cartfile.resolved",
     ],
@@ -189,7 +189,7 @@ class ProcessingService:
         git_label_repository: GitLabelRepositoryHelper,
         encryption_service: FernetEncryptionHelper,
         code_chunks_repository: CodeChunksRepositoryHelper,
-        repo_fetcher_store: RepoFetcher = None
+        repo_fetcher_store: RepoFetcher = None,
     ):
         self.context_repository = context_repository
         self.repo_repository = repo_repository
@@ -201,9 +201,18 @@ class ProcessingService:
         self.base_dir = Path(settings.BASE_DIR)
         self.code_chunks_repository = code_chunks_repository
         self.together_client = Together(api_key=settings.TOGETHER_API_KEY)
-        self.readme_files = ['README.md', 'README.txt', 'README.rst', 'README', 'readme.md', 'readme.txt']
+        self.readme_files = [
+            "README.md",
+            "README.txt",
+            "README.rst",
+            "README",
+            "readme.md",
+            "readme.txt",
+        ]
 
-    def _extract_readme_content(self, chunks: List[Document], relative_path: Path) -> Optional[str]:
+    def _extract_readme_content(
+        self, chunks: List[Document], relative_path: Path
+    ) -> Optional[str]:
         """Extract README file content from chunks"""
         for readme_file in self.readme_files:
             for chunk in chunks:
@@ -211,7 +220,9 @@ class ProcessingService:
 
                 if file_name.lower() == readme_file.lower():
                     try:
-                        file_path_chunk = relative_path / chunk.metadata.get("file_path", "")
+                        file_path_chunk = relative_path / chunk.metadata.get(
+                            "file_path", ""
+                        )
                         file_path = Path(file_path_chunk).resolve()
 
                         if file_path.exists():
@@ -262,8 +273,8 @@ class ProcessingService:
         - Any other important information (deployment, security, performance notes, etc.)
 
         Keep each section concise but informative. If information is not available in the README, mention "Not specified in README"."""
-    
-    def _analyze_readme_content(self, readme_content: str) ->  Dict:
+
+    def _analyze_readme_content(self, readme_content: str) -> Dict:
         """Analyze README content to extract structured information"""
         prompt = self._create_readme_analysis_prompt(readme_content)
         try:
@@ -275,7 +286,7 @@ class ProcessingService:
                 temperature=0.2,
                 top_p=0.9,
                 top_k=40,
-                repetition_penalty=1.1
+                repetition_penalty=1.1,
             )
 
             analysis = response.choices[0].message.content
@@ -285,34 +296,36 @@ class ProcessingService:
             current_section = None
             current_content = []
 
-            for line in analysis.split('\n'):
-                if line.startswith('## '):
+            for line in analysis.split("\n"):
+                if line.startswith("## "):
                     if current_section:
-                        sections[current_section] = '\n'.join(current_content).strip()
-                    current_section = line.replace('## ', '').strip()
+                        sections[current_section] = "\n".join(current_content).strip()
+                    current_section = line.replace("## ", "").strip()
                     current_content = []
                 else:
                     current_content.append(line)
 
             if current_section:
-                sections[current_section] = '\n'.join(current_content).strip()
+                sections[current_section] = "\n".join(current_content).strip()
 
             return {
-                'full_analysis': analysis,
-                'project_description': sections.get('Project Description', ''),
-                'setup_instructions': sections.get('Setup & Installation', ''),
-                'key_features': sections.get('Key Features', ''),
-                'architecture': sections.get('Architecture & Technology Stack', ''),
-                'usage_examples': sections.get('Usage Examples', ''),
-                'development_info': sections.get('Development Information', ''),
-                'additional_context': sections.get('Additional Context', '')
+                "full_analysis": analysis,
+                "project_description": sections.get("Project Description", ""),
+                "setup_instructions": sections.get("Setup & Installation", ""),
+                "key_features": sections.get("Key Features", ""),
+                "architecture": sections.get("Architecture & Technology Stack", ""),
+                "usage_examples": sections.get("Usage Examples", ""),
+                "development_info": sections.get("Development Information", ""),
+                "additional_context": sections.get("Additional Context", ""),
             }
 
         except Exception as e:
             logger.error(f"Failed to analyze README content: {e}")
-            return {'full_analysis': 'Analysis failed', 'project_description': '', 'setup_instructions': ''}
-
-
+            return {
+                "full_analysis": "Analysis failed",
+                "project_description": "",
+                "setup_instructions": "",
+            }
 
     async def prepare_repository(self, repo_name) -> Tuple[Path, str]:
         repo_path = self.base_dir / repo_name
@@ -331,7 +344,25 @@ class ProcessingService:
                 clone_url=repo_url,
                 branch=branch,
                 file_filter=lambda file_path: file_path.endswith(
-                    (".py", ".js", ".java", ".cpp", ".h", ".cs", ".ts", ".go", ".toml", ".md", "txt", ".lock",".cfg", ".yml",".yaml", ".conf",".ini")
+                    (
+                        ".py",
+                        ".js",
+                        ".java",
+                        ".cpp",
+                        ".h",
+                        ".cs",
+                        ".ts",
+                        ".go",
+                        ".toml",
+                        ".md",
+                        "txt",
+                        ".lock",
+                        ".cfg",
+                        ".yml",
+                        ".yaml",
+                        ".conf",
+                        ".ini",
+                    )
                 ),
                 repo_path=repo_path,
             )
@@ -342,17 +373,21 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(self, job_payload: Dict[str, Any], job_tracer:Optional[JobTraceMetaData] = None) -> ProcessingResult:
+    async def process_repository(
+        self, job_payload: Dict[str, Any], job_tracer: Optional[JobTraceMetaData] = None
+    ) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
 
         start_time = datetime.now(timezone.utc)
-        
+
         try:
             # Get repository information
-            repo = await self.repo_repository.find_by_repo_id(job_payload["repo_id"])
-            
+
+            repo = await self.repo_repository.find_by_repo_id_user_id(
+                job_payload["repo_id"], job_payload["user_id"]
+            )
             if not repo:
                 return ProcessingResult(
                     success=False,
@@ -362,12 +397,12 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository not found",
                 )
-            
+
             if job_tracer:
                 job_tracer.add_metadata(
                     repository_html_url=repo.html_url,
                 )
-            
+
             # Get git credentials
             _ = await self._get_authenticated_git_client(
                 job_tracer=job_tracer,
@@ -375,17 +410,18 @@ class ProcessingService:
                 git_provider=job_payload["git_provider"],
                 git_token=job_payload["git_token"],
             )
-            
+
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
 
             files = self.clone_and_process_repository(
                 repo.html_url, relative_path, job_payload.get("branch", "main")
             )
-            
+
             repo_local = Repo(relative_path)
             commit_hash = repo_local.head.commit.hexsha
             if repo.last_commit == commit_hash and repo.status == "failed":
+
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
@@ -397,7 +433,10 @@ class ProcessingService:
             # Process files into chunks
             chunks = self._process_files_to_chunks(files)
 
-            _ = await self.analyze_repository(chunks, relative_path, repo.language, repo.id)
+            _ = await self.analyze_repository(
+                chunks, relative_path, repo.language, repo.id
+            )
+
             embeddings = self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
@@ -444,11 +483,18 @@ class ProcessingService:
             )
 
             return ProcessingResult(
-                success=False, context_id=context_id, error_object=e, error_message=str(e)
+                success=False,
+                context_id=context_id,
+                error_object=e,
+                error_message=str(e),
             )
 
     async def _get_authenticated_git_client(
-        self, user_id: str, git_provider: str, git_token: str, job_tracer:Optional[JobTraceMetaData] = None,
+        self,
+        user_id: str,
+        git_provider: str,
+        git_token: str,
+        job_tracer: Optional[JobTraceMetaData] = None,
     ):
         """Get authenticated git client for user"""
 
@@ -462,12 +508,12 @@ class ProcessingService:
 
         # Decrypt the stored token
         user = await self.user_info.find_by_user_id(user_id)
-        
+
         if job_tracer:
-	        job_tracer.add_metadata(
-	            user_email=user.email,
-	        )
-        
+            job_tracer.add_metadata(
+                user_email=user.email,
+            )
+
         decrypted_encryption_salt = self.encryption_service.decrypt(
             user.encryption_salt
         )
@@ -547,12 +593,18 @@ class ProcessingService:
 
         return "text"
 
-    def _create_comprehensive_analysis_prompt(self, dependency_files: List[Dict[str, str]], readme_analysis: Optional[Dict[str, str]] = None) -> str:
+    def _create_comprehensive_analysis_prompt(
+        self,
+        dependency_files: List[Dict[str, str]],
+        readme_analysis: Optional[Dict[str, str]] = None,
+    ) -> str:
         """Create a comprehensive analysis prompt combining dependency files and README"""
-        files_content = "\n\n".join([
-            f"=== {file['file_name']} ({file['language']}) ===\n{file['content']}"
-            for file in dependency_files
-        ])
+        files_content = "\n\n".join(
+            [
+                f"=== {file['file_name']} ({file['language']}) ===\n{file['content']}"
+                for file in dependency_files
+            ]
+        )
 
         readme_section = ""
         if readme_analysis:
@@ -610,49 +662,54 @@ class ProcessingService:
         """Extract and clean filename from chunk metadata"""
         return chunk.metadata.get("file_name", "").strip()
 
-    def _find_matching_language(self, file_name: str, valid_languages: List[str]) -> str:
+    def _find_matching_language(
+        self, file_name: str, valid_languages: List[str]
+    ) -> str:
         """Find the first language that matches the file's dependency pattern"""
         for lang in valid_languages:
             if self._matches_dependency_pattern(file_name, DEPENDENCY_FILES[lang]):
                 return lang
         return ""
 
-    def _extract_dependency_files(self, chunks: List[Document], relative_path: Path, languages: List[str]) -> List[
-        Dict[str, str]]:
+    def _extract_dependency_files(
+        self, chunks: List[Document], relative_path: Path, languages: List[str]
+    ) -> List[Dict[str, str]]:
         """Extract dependency files content from chunks"""
         dependency_files = []
         processed_files = set()
         valid_languages = [lang for lang in languages if lang in DEPENDENCY_FILES]
 
-
         for chunk in chunks:
-                file_name = self._get_clean_filename(chunk)
-                # Skip if file already processed or invalid
-                if not file_name or file_name in processed_files:
-                    continue
+            file_name = self._get_clean_filename(chunk)
+            # Skip if file already processed or invalid
+            if not file_name or file_name in processed_files:
+                continue
 
-                matching_language = self._find_matching_language(file_name, valid_languages)
-                if matching_language:
-                    dependency_file = self._read_dependency_file(chunk, relative_path, matching_language)
-                    if dependency_file:
-                        dependency_files.append(dependency_file)
-                        processed_files.add(file_name)
-
+            matching_language = self._find_matching_language(file_name, valid_languages)
+            if matching_language:
+                dependency_file = self._read_dependency_file(
+                    chunk, relative_path, matching_language
+                )
+                if dependency_file:
+                    dependency_files.append(dependency_file)
+                    processed_files.add(file_name)
 
         return dependency_files
 
     def _matches_dependency_pattern(self, file_name: str, patterns: List[str]) -> bool:
         """Check if file name matches any dependency pattern"""
         for pattern in patterns:
-            if '*' in pattern:
-                extension = pattern.replace('*', '')
+            if "*" in pattern:
+                extension = pattern.replace("*", "")
                 if file_name.endswith(extension):
                     return True
             elif file_name == pattern:
                 return True
         return False
 
-    def _read_dependency_file(self, chunk: Document, relative_path: Path, language: str) -> Optional[Dict[str, str]]:
+    def _read_dependency_file(
+        self, chunk: Document, relative_path: Path, language: str
+    ) -> Optional[Dict[str, str]]:
         """Read dependency file content and return file info"""
         try:
             file_name = chunk.metadata.get("file_name", "").strip()
@@ -665,23 +722,25 @@ class ProcessingService:
             with file_path.open("r", encoding="utf-8") as f:
                 content = f.read()
 
-            return {
-                "file_name": file_name,
-                "content": content,
-                "language": language
-            }
+            return {"file_name": file_name, "content": content, "language": language}
 
         except Exception as e:
             logger.warning(f"Could not read dependency file {file_name}: {e}")
             return None
 
-
-    async def analyze_repository(self, chunks: List[Document], relative_path: Path, languages: List[str],  id: str | UUID) -> Optional[
-        bool|None]:
+    async def analyze_repository(
+        self,
+        chunks: List[Document],
+        relative_path: Path,
+        languages: List[str],
+        id: str | UUID,
+    ) -> Optional[bool | None]:
         """Analyze repository based on dependency files and save to database"""
         try:
             # Extract dependency files
-            dependency_files = self._extract_dependency_files(chunks, relative_path, languages)
+            dependency_files = self._extract_dependency_files(
+                chunks, relative_path, languages
+            )
 
             # Extract and analyze README
             readme_content = self._extract_readme_content(chunks, relative_path)
@@ -693,7 +752,9 @@ class ProcessingService:
                 return None
 
             # Create analysis prompt
-            prompt = self._create_comprehensive_analysis_prompt(dependency_files, readme_analysis)
+            prompt = self._create_comprehensive_analysis_prompt(
+                dependency_files, readme_analysis
+            )
             # Get analysis from LLM
             messages = [{"role": "user", "content": prompt}]
             response = self.together_client.chat.completions.create(
@@ -703,7 +764,7 @@ class ProcessingService:
                 temperature=0.3,
                 top_p=0.9,
                 top_k=40,
-                repetition_penalty=1.1
+                repetition_penalty=1.1,
             )
 
             analysis_content = response.choices[0].message.content
@@ -713,7 +774,6 @@ class ProcessingService:
                 str(id),
                 repo_system_reference=analysis_content,
             )
-
 
             logger.info(f"Repository analysis saved with ID: {id}")
             return True
@@ -736,7 +796,7 @@ class ProcessingService:
             if chunks:
                 try:
                     # TO DO shoule be changed
-                   for chunk in chunks:
+                    for chunk in chunks:
 
                         response = together_client.embeddings.create(
                             input=chunk.page_content,
