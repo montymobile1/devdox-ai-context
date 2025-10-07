@@ -386,7 +386,7 @@ class ProcessingService:
             # Get repository information
 
             repo = await self.repo_repository.find_by_repo_id_user_id(
-                job_payload["repo_id"], job_payload["user_id"]
+                str(job_payload["repo_id"]), str(job_payload["user_id"])
             )
             if not repo:
                 return ProcessingResult(
