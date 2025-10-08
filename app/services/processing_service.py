@@ -401,7 +401,7 @@ class ProcessingService:
                 str(job_payload["repo_id"]), str(job_payload["user_id"])
             )
             if not repo:
-
+                
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
@@ -487,7 +487,7 @@ class ProcessingService:
             # -----------------------
             # EMBEDDINGS
             # -----------------------
-
+            
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.EMBEDDINGS)
 
@@ -510,17 +510,17 @@ class ProcessingService:
                 data=embeddings,
                 commit_number=commit_hash,
             )
-
+            
             # Update context completion
             end_time = datetime.now(timezone.utc)
             processing_time = (end_time - start_time).total_seconds()
-
+            
             # -----------------------
             # CONTEXT_FINALIZE
             # -----------------------
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.CONTEXT_FINALIZE)
-
+            
             await self.context_repository.update_status(
                 str(repo.id),
                 "completed",
@@ -529,7 +529,7 @@ class ProcessingService:
                 total_chunks=len(chunks),
                 total_embeddings=len(embeddings),
             )
-
+            
             return ProcessingResult(
                 success=True,
                 context_id=context_id,
@@ -747,6 +747,7 @@ class ProcessingService:
         processed_files = set()
         valid_languages = [lang for lang in languages if lang in DEPENDENCY_FILES]
 
+
         for chunk in chunks:
             file_name = self._get_clean_filename(chunk)
             # Skip if file already processed or invalid
@@ -761,6 +762,7 @@ class ProcessingService:
                 if dependency_file:
                     dependency_files.append(dependency_file)
                     processed_files.add(file_name)
+
 
         return dependency_files
 
@@ -808,7 +810,7 @@ class ProcessingService:
         try:
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.ANALYSIS)
-
+            
             # Extract dependency files
             dependency_files = self._extract_dependency_files(
                 chunks, relative_path, languages
@@ -819,7 +821,6 @@ class ProcessingService:
             readme_analysis = None
             if readme_content:
                 readme_analysis = self._analyze_readme_content(readme_content)
-
             if not dependency_files and not readme_content:
                 logger.info("No dependency files or README found for analysis")
                 return None
