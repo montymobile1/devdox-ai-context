@@ -7,7 +7,7 @@ from uuid import UUID
 
 from devdox_ai_git.repo_fetcher import RepoFetcher
 from git import Repo
-from together import Together
+from together import Together, AsyncTogether
 from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -374,7 +374,12 @@ class ProcessingService:
         except Exception:
             return []
 
-    async def process_repository(self, job_payload: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, job_tracer:Optional[JobTraceMetaData] = None) -> ProcessingResult:
+    async def process_repository(
+        self,
+        job_payload: Dict[str, Any],
+        job_tracker_instance: Optional[JobTracker] = None,
+        job_tracer: Optional[JobTraceMetaData] = None,
+    ) -> ProcessingResult:
         """Process a repository and create context"""
 
         context_id = job_payload["context_id"]
@@ -471,7 +476,13 @@ class ProcessingService:
             # -----------------------
             # ANALYSIS
             # -----------------------
-            _ = await self.analyze_repository(chunks, relative_path, repo.language, repo.id, job_tracker_instance=job_tracker_instance)
+            _ = await self.analyze_repository(
+                chunks,
+                relative_path,
+                repo.language,
+                repo.id,
+                job_tracker_instance=job_tracker_instance,
+            )
 
             # -----------------------
             # EMBEDDINGS
@@ -480,7 +491,7 @@ class ProcessingService:
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.EMBEDDINGS)
 
-            embeddings = self._create_embeddings(
+            embeddings = await self._create_embeddings(
                 chunks,
                 model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
             )
@@ -736,7 +747,6 @@ class ProcessingService:
         processed_files = set()
         valid_languages = [lang for lang in languages if lang in DEPENDENCY_FILES]
 
-
         for chunk in chunks:
             file_name = self._get_clean_filename(chunk)
             # Skip if file already processed or invalid
@@ -751,7 +761,6 @@ class ProcessingService:
                 if dependency_file:
                     dependency_files.append(dependency_file)
                     processed_files.add(file_name)
-
 
         return dependency_files
 
@@ -787,16 +796,23 @@ class ProcessingService:
             logger.warning(f"Could not read dependency file {file_name}: {e}")
             return None
 
-
-    async def analyze_repository(self, chunks: List[Document], relative_path: Path, languages: List[str],  id: str | UUID, job_tracker_instance:Optional[JobTracker]=None) -> Optional[
-        bool|None]:
+    async def analyze_repository(
+        self,
+        chunks: List[Document],
+        relative_path: Path,
+        languages: List[str],
+        id: str | UUID,
+        job_tracker_instance: Optional[JobTracker] = None,
+    ) -> Optional[bool | None]:
         """Analyze repository based on dependency files and save to database"""
         try:
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.ANALYSIS)
 
             # Extract dependency files
-            dependency_files = self._extract_dependency_files(chunks, relative_path, languages)
+            dependency_files = self._extract_dependency_files(
+                chunks, relative_path, languages
+            )
 
             # Extract and analyze README
             readme_content = self._extract_readme_content(chunks, relative_path)
@@ -839,7 +855,7 @@ class ProcessingService:
             logger.error(f"Failed to analyze repository: {e}")
             return None
 
-    def _create_embeddings(
+    async def _create_embeddings(
         self,
         chunks: List[Document],
         model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
@@ -848,36 +864,47 @@ class ProcessingService:
 
         embeddings = []
         if len(chunks) > 0:
-            together_client = Together(api_key=settings.TOGETHER_API_KEY)
+            together_client = AsyncTogether(api_key=settings.TOGETHER_API_KEY)
 
-            if chunks:
-                try:
-                    # TO DO shoule be changed
-                    for chunk in chunks:
+        if chunks:
+            try:
+                # Batch process all chunks concurrently
+                async def create_embedding(chunk):
+                    response = await together_client.embeddings.create(
+                        input=chunk.page_content,
+                        model=model_api_string,
+                    )
+                    return {
+                        "chunk_id": str(uuid.uuid4()),
+                        "embedding": response.data[0].embedding,
+                        "model_name": model_api_string,
+                        "model_version": "1.0",
+                        "vector_dimension": len(response.data[0].embedding),
+                        "content": chunk.page_content,
+                        "metadata": chunk.metadata,
+                        "file_name": chunk.metadata.get("file_name", ""),
+                        "file_path": chunk.metadata.get("file_path", ""),
+                        "file_size": chunk.metadata.get("file_size", 0),
+                    }
 
-                        response = together_client.embeddings.create(
-                            input=chunk.page_content,
-                            model=model_api_string,
+                # Process all chunks concurrently
+                embeddings = await asyncio.gather(
+                    *[create_embedding(chunk) for chunk in chunks],
+                    return_exceptions=True,
+                )
+
+                # Filter out exceptions and log them
+                valid_embeddings = []
+                for i, result in enumerate(embeddings):
+                    if isinstance(result, Exception):
+                        logger.error(
+                            f"Failed to create embedding for chunk {i}: {result}"
                         )
+                    else:
+                        valid_embeddings.append(result)
+                embeddings = valid_embeddings
 
-                        embedding = {
-                            "chunk_id": str(
-                                uuid.uuid4()
-                            ),  # This would be set after chunk creation
-                            "embedding": response.data[0].embedding,
-                            "model_name": model_api_string,
-                            "model_version": "1.0",
-                            "vector_dimension": len(response.data[0].embedding),
-                            "content": chunk.page_content,
-                            "metadata": chunk.metadata,
-                            "file_name": chunk.metadata.get("file_name", ""),
-                            "file_path": chunk.metadata.get("file_path", ""),
-                            "file_size": chunk.metadata.get("file_size", 0),
-                        }
-                        embeddings.append(embedding)
-
-                except Exception as e:
-                    logger.error(f"Failed to create embedding for chunk: {e}")
-                    # continue
+            except Exception as e:
+                logger.error(f"Failed to create embeddings: {e}")
 
         return embeddings

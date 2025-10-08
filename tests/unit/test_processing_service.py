@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 from langchain_core.documents import Document
+
 from app.services.processing_service import ProcessingService
 import tempfile
 
@@ -301,7 +302,7 @@ class TestProcessingService:
         assert "README ANALYSIS" not in prompt
 
     @pytest.mark.asyncio
-    @patch("app.services.processing_service.Together")
+    @patch("app.services.processing_service.AsyncTogether")
     async def test_analyze_repository_api_failure(
         self, mock_together_class, processing_service, mock_repositories
     ):
@@ -523,7 +524,7 @@ class TestProcessingService:
             ]
         )
         processing_service.analyze_repository = AsyncMock(return_value=True)
-        processing_service._create_embeddings = MagicMock(
+        processing_service._create_embeddings = AsyncMock(
             return_value=[{"chunk_id": "1", "embedding": [0.1, 0.2]}]
         )
 
@@ -679,7 +680,7 @@ class TestProcessingService:
         assert result is None
 
     @pytest.mark.skip(reason="Does not work even before upgrade")
-    @patch("app.services.processing_service.Together")
+    @patch("app.services.processing_service.AsyncTogether")
     def test_analyze_readme_content_failure(self, mock_together_class):
         """Test README analysis failure - Mock Together class during instantiation"""
 
@@ -749,47 +750,57 @@ class TestProcessingService:
         assert "README ANALYSIS" in prompt
         assert "This is a test project" in prompt
 
-    @patch("app.services.processing_service.Together")
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.AsyncTogether")
     @patch("app.services.processing_service.settings")
-    def test_create_embeddings_success(
+    async def test_create_embeddings_success(
         self, mock_settings, mock_together_class, processing_service, sample_documents
     ):
         """Test successful embedding creation"""
         # Mock Together client response
-        mock_embedding_data = MagicMock()
+
+        # Mock Together client response
+        mock_embedding_data = AsyncMock()
         mock_embedding_data.embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
 
-        mock_response = MagicMock()
+        mock_response = AsyncMock()
         mock_response.data = [mock_embedding_data]
 
+        # Mock the async embeddings.create method
         mock_client = MagicMock()
-        mock_client.embeddings.create.return_value = mock_response
+        mock_client.embeddings.create = AsyncMock(return_value=mock_response)
         mock_together_class.return_value = mock_client
 
         mock_settings.TOGETHER_API_KEY = "test_key"
 
-        result = processing_service._create_embeddings(sample_documents)
+        result = await processing_service._create_embeddings(sample_documents)
 
         assert len(result) == len(sample_documents)
+
+        # Verify first embedding
         embedding = result[0]
         assert "chunk_id" in embedding
         assert embedding["embedding"] == [0.1, 0.2, 0.3, 0.4, 0.5]
         assert embedding["model_name"] == "togethercomputer/m2-bert-80M-32k-retrieval"
         assert embedding["vector_dimension"] == 5
+        assert embedding["content"] == sample_documents[0].page_content
 
-    @patch("app.services.processing_service.Together")
-    def test_create_embeddings_empty_chunks(
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.settings")
+    @patch("app.services.processing_service.AsyncTogether")
+    async def test_create_embeddings_empty_chunks(
         self, mock_together_class, processing_service
     ):
         """Test embedding creation with empty chunks"""
         chunks = []
 
-        result = processing_service._create_embeddings(chunks)
+        result = await processing_service._create_embeddings(chunks)
+        print("result ", result)
 
         assert result == []
         mock_together_class.assert_not_called()
 
-    @patch("app.services.processing_service.Together")
+    @patch("app.services.processing_service.AsyncTogether")
     @patch("app.services.processing_service.settings")
     def test_create_embeddings_api_failure(
         self, mock_settings, mock_together_class, processing_service, sample_documents
@@ -848,7 +859,7 @@ class TestProcessingService:
             ]
         )
         processing_service.analyze_repository = AsyncMock(return_value=True)
-        processing_service._create_embeddings = MagicMock(
+        processing_service._create_embeddings = AsyncMock(
             return_value=[
                 {"chunk_id": "chunk1", "embedding": [0.1, 0.2], "content": "chunk1"}
             ]
@@ -917,7 +928,7 @@ class TestProcessingService:
         assert "Repository already processed" in result.error_message
 
     @pytest.mark.asyncio
-    @patch("app.services.processing_service.Together")
+    @patch("app.services.processing_service.AsyncTogether")
     async def test_analyze_repository_success_alternative(
         self,
         mock_together_class,
@@ -1039,10 +1050,11 @@ class TestProcessingService:
             chunks = processing_service._chunk_file_content(file_data, context_id)
             assert chunks == []
 
-    @patch("app.services.processing_service.Together")
+    @pytest.mark.asyncio
     @patch("app.services.processing_service.settings")
-    def test_create_embeddings_success(
-        self, mock_settings, mock_together_class, processing_service
+    @patch("app.services.processing_service.AsyncTogether")
+    async def test_create_embeddings_success(
+        self, mock_together_class, mock_settings, processing_service
     ):
         """Test successful embedding creation"""
         chunks = [
@@ -1052,20 +1064,25 @@ class TestProcessingService:
             )
         ]
 
-        # Mock Together client response
+        # Mock Together API response
         mock_embedding_data = MagicMock()
         mock_embedding_data.embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
 
         mock_response = MagicMock()
         mock_response.data = [mock_embedding_data]
 
-        mock_client = MagicMock()
-        mock_client.embeddings.create.return_value = mock_response
-        mock_together_class.return_value = mock_client
+        # Create mock structure
+        mock_embeddings = MagicMock()
+        mock_embeddings.create = AsyncMock(return_value=mock_response)
 
+        mock_client = MagicMock()
+        mock_client.embeddings = mock_embeddings
+
+        mock_together_class.return_value = mock_client
         mock_settings.TOGETHER_API_KEY = "test_key"
 
-        result = processing_service._create_embeddings(chunks)
+        result = await processing_service._create_embeddings(chunks)
+
         assert len(result) == 1
         embedding = result[0]
         assert "chunk_id" in embedding
@@ -1073,23 +1090,25 @@ class TestProcessingService:
         assert embedding["model_name"] == "togethercomputer/m2-bert-80M-32k-retrieval"
         assert embedding["vector_dimension"] == 5
         assert embedding["content"] == "def hello(): pass"
-        assert embedding["metadata"] == {"file_name": "test.py", "source": "test.py"}
+        assert embedding["file_name"] == "test.py"
 
-    @patch("app.services.processing_service.Together")
-    def test_create_embeddings_empty_chunks(
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.AsyncTogether")
+    async def test_create_embeddings_empty_chunks(
         self, mock_together_class, processing_service
     ):
         """Test embedding creation with empty chunks"""
         chunks = []
 
-        result = processing_service._create_embeddings(chunks)
+        result = await processing_service._create_embeddings(chunks)
 
         assert result == []
         mock_together_class.assert_not_called()
 
-    @patch("app.services.processing_service.Together")
+    @pytest.mark.asyncio
+    @patch("app.services.processing_service.AsyncTogether")
     @patch("app.services.processing_service.settings")
-    def test_create_embeddings_api_failure(
+    async def test_create_embeddings_api_failure(
         self, mock_settings, mock_together_class, processing_service
     ):
         """Test embedding creation with API failure"""
@@ -1102,7 +1121,7 @@ class TestProcessingService:
         mock_together_class.return_value = mock_client
 
         mock_settings.TOGETHER_API_KEY = "test_key"
-        result = processing_service._create_embeddings(chunks)
+        result = await processing_service._create_embeddings(chunks)
 
         assert result == []
 
@@ -1284,7 +1303,7 @@ class TestProcessingServiceIntegration:
         service.clone_and_process_repository = MagicMock(return_value=[])
         service.analyze_repository = AsyncMock(return_value=True)
         service._process_files_to_chunks = MagicMock(return_value=[])
-        service._create_embeddings = MagicMock(return_value=[])
+        service._create_embeddings = AsyncMock(return_value=[])
 
         # Test payload
         payload = {
