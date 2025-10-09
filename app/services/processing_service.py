@@ -5,6 +5,14 @@ import shutil
 import uuid
 from uuid import UUID
 
+
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
+
 from devdox_ai_git.repo_fetcher import RepoFetcher
 from git import Repo
 from together import Together, AsyncTogether
@@ -38,6 +46,7 @@ settings_gradle_file = "settings.gradle"
 gradle_properties_file = "gradle.properties"
 podfile_lock_file = "Podfile.lock"
 podfile_file = "Podfile"
+
 
 DEPENDENCY_FILES = {
     # Backend Languages
@@ -179,6 +188,47 @@ DEPENDENCY_FILES = {
     ],
     "Flutter": ["pubspec.yaml", "pubspec.lock", "analysis_options.yaml"],
 }
+
+
+class RateLimitError(Exception):
+    logger.info(f"error occurred while attempting to rate limit {Exception}")
+    pass
+
+
+@retry(
+    retry=retry_if_exception_type(RateLimitError),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    stop=stop_after_attempt(5),
+)
+async def create_embedding_with_retry(
+    chunk: Document, semaphore: asyncio.Semaphore, model_api_string: str
+):
+    """Create embedding with automatic retry on rate limit."""
+    async with semaphore:
+        try:
+            together_client = AsyncTogether(api_key=settings.TOGETHER_API_KEY)
+            response = await together_client.embeddings.create(
+                input=chunk.page_content,
+                model=model_api_string,
+            )
+            return {
+                "chunk_id": str(uuid.uuid4()),
+                "embedding": response.data[0].embedding,
+                "model_name": model_api_string,
+                "model_version": "1.0",
+                "vector_dimension": len(response.data[0].embedding),
+                "content": chunk.page_content,
+                "metadata": chunk.metadata,
+                "file_name": chunk.metadata.get("file_name", ""),
+                "file_path": chunk.metadata.get("file_path", ""),
+                "file_size": chunk.metadata.get("file_size", 0),
+            }
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                logger.warning(f"Rate limit hit, will retry: {e}")
+                raise RateLimitError(str(e))
+            logger.error(f"Failed to create embedding: {e}")
+            raise
 
 
 class ProcessingService:
@@ -401,7 +451,7 @@ class ProcessingService:
                 str(job_payload["repo_id"]), str(job_payload["user_id"])
             )
             if not repo:
-                
+
                 return ProcessingResult(
                     success=False,
                     context_id=context_id,
@@ -487,7 +537,7 @@ class ProcessingService:
             # -----------------------
             # EMBEDDINGS
             # -----------------------
-            
+
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.EMBEDDINGS)
 
@@ -510,17 +560,17 @@ class ProcessingService:
                 data=embeddings,
                 commit_number=commit_hash,
             )
-            
+
             # Update context completion
             end_time = datetime.now(timezone.utc)
             processing_time = (end_time - start_time).total_seconds()
-            
+
             # -----------------------
             # CONTEXT_FINALIZE
             # -----------------------
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.CONTEXT_FINALIZE)
-            
+
             await self.context_repository.update_status(
                 str(repo.id),
                 "completed",
@@ -529,7 +579,7 @@ class ProcessingService:
                 total_chunks=len(chunks),
                 total_embeddings=len(embeddings),
             )
-            
+
             return ProcessingResult(
                 success=True,
                 context_id=context_id,
@@ -747,7 +797,6 @@ class ProcessingService:
         processed_files = set()
         valid_languages = [lang for lang in languages if lang in DEPENDENCY_FILES]
 
-
         for chunk in chunks:
             file_name = self._get_clean_filename(chunk)
             # Skip if file already processed or invalid
@@ -762,7 +811,6 @@ class ProcessingService:
                 if dependency_file:
                     dependency_files.append(dependency_file)
                     processed_files.add(file_name)
-
 
         return dependency_files
 
@@ -810,7 +858,7 @@ class ProcessingService:
         try:
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.ANALYSIS)
-            
+
             # Extract dependency files
             dependency_files = self._extract_dependency_files(
                 chunks, relative_path, languages
@@ -860,52 +908,34 @@ class ProcessingService:
         self,
         chunks: List[Document],
         model_api_string="togethercomputer/m2-bert-80M-32k-retrieval",
+        max_concurrent: int = 40,
     ) -> List[Dict]:
-        """Create vector embeddings for code chunks"""
+        """Process chunks with concurrency control and retry logic."""
+        semaphore = asyncio.Semaphore(max_concurrent)
 
-        embeddings = []
-        if len(chunks) > 0:
-            together_client = AsyncTogether(api_key=settings.TOGETHER_API_KEY)
+        embeddings = await asyncio.gather(
+            *[
+                create_embedding_with_retry(chunk, semaphore, model_api_string)
+                for chunk in chunks
+            ],
+            return_exceptions=True,
+        )
 
-        if chunks:
-            try:
-                # Batch process all chunks concurrently
-                async def create_embedding(chunk):
-                    response = await together_client.embeddings.create(
-                        input=chunk.page_content,
-                        model=model_api_string,
-                    )
-                    return {
-                        "chunk_id": str(uuid.uuid4()),
-                        "embedding": response.data[0].embedding,
-                        "model_name": model_api_string,
-                        "model_version": "1.0",
-                        "vector_dimension": len(response.data[0].embedding),
-                        "content": chunk.page_content,
-                        "metadata": chunk.metadata,
-                        "file_name": chunk.metadata.get("file_name", ""),
-                        "file_path": chunk.metadata.get("file_path", ""),
-                        "file_size": chunk.metadata.get("file_size", 0),
-                    }
+        # Separate successful and failed embeddings
+        successful_embeddings = []
+        failed_count = 0
 
-                # Process all chunks concurrently
-                embeddings = await asyncio.gather(
-                    *[create_embedding(chunk) for chunk in chunks],
-                    return_exceptions=True,
-                )
+        for i, emb in enumerate(embeddings):
+            if isinstance(emb, Exception):
+                logger.error(f"Chunk {i} permanently failed: {emb}")
+                failed_count += 1
+            elif emb is not None:
+                successful_embeddings.append(emb)
 
-                # Filter out exceptions and log them
-                valid_embeddings = []
-                for i, result in enumerate(embeddings):
-                    if isinstance(result, Exception):
-                        logger.error(
-                            f"Failed to create embedding for chunk {i}: {result}"
-                        )
-                    else:
-                        valid_embeddings.append(result)
-                embeddings = valid_embeddings
+        logger.info(
+            f"Successfully processed {len(successful_embeddings)}/{len(chunks)} chunks"
+        )
+        if failed_count > 0:
+            logger.warning(f"{failed_count} chunks failed after all retries")
 
-            except Exception as e:
-                logger.error(f"Failed to create embeddings: {e}")
-
-        return embeddings
+        return successful_embeddings
