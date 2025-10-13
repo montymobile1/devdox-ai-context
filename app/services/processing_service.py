@@ -191,7 +191,6 @@ DEPENDENCY_FILES = {
 
 
 class RateLimitError(Exception):
-    logger.info(f"error occurred while attempting to rate limit {Exception}")
     pass
 
 
