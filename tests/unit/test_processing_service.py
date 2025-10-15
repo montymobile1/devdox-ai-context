@@ -199,7 +199,6 @@ class TestProcessingService:
             )
             assert result is None
 
-
     def test_read_dependency_file_encoding_error(self, processing_service):
         """Test dependency file reading with encoding error"""
         chunk = Document(
@@ -296,7 +295,6 @@ class TestProcessingService:
         prompt = processing_service._create_comprehensive_analysis_prompt(
             dependency_files, None
         )
-        print("prompt ", prompt)
         assert "requirements.txt" in prompt
         assert "Python" in prompt
         assert "flask==2.0.0" in prompt
@@ -535,7 +533,6 @@ class TestProcessingService:
         assert result.success is False
         assert "Storage failed" in result.error_message
 
-
     @patch("app.services.processing_service.RecursiveCharacterTextSplitter")
     def test_process_files_to_chunks(self, mock_text_splitter, processing_service):
         """Test processing files to chunks"""
@@ -549,7 +546,6 @@ class TestProcessingService:
                 metadata={"source": "world.py"},
             ),
         ]
-
 
         mock_chunks = [
             Document(page_content="def hello():", metadata={"source": "hello.py"}),
@@ -628,10 +624,6 @@ class TestProcessingService:
             assert result["content"] == '{"name": "test"}'
             assert result["language"] == "JavaScript"
 
-
-
-
-
     def test_extract_readme_content_found(self, processing_service, sample_documents):
         """Test README extraction when file is found"""
         mock_file_content = mock_open(read_data="# Test README")
@@ -687,7 +679,6 @@ class TestProcessingService:
 
         assert result is None
 
-
     @pytest.mark.skip(reason="Does not work even before upgrade")
     @patch("app.services.processing_service.AsyncTogether")
     def test_analyze_readme_content_failure(self, mock_together_class):
@@ -719,7 +710,6 @@ class TestProcessingService:
 
         # Verify the API was actually called
         mock_client.chat.completions.create.assert_called_once()
-
 
     def test_extract_dependency_files(self, processing_service, sample_documents):
         """Test dependency files extraction"""
@@ -805,7 +795,6 @@ class TestProcessingService:
         chunks = []
 
         result = await processing_service._create_embeddings(chunks)
-        print("result ", result)
 
         assert result == []
         mock_together_class.assert_not_called()
@@ -1111,9 +1100,8 @@ class TestProcessingService:
         chunks = []
 
         result = await processing_service._create_embeddings(chunks)
-
         assert result == []
-        mock_together_class.assert_not_called()
+        mock_together_class.embeddings.assert_not_called()
 
     @pytest.mark.asyncio
     @patch("app.services.processing_service.AsyncTogether")
@@ -1209,7 +1197,6 @@ class TestProcessingService:
         assert result.success is False
         assert "Clone failed" in result.error_message
 
-
     def test_chunk_file_content(self, processing_service):
         """Test file content chunking"""
         file_data = {
@@ -1283,7 +1270,7 @@ class TestProcessingServiceIntegration:
 
         # ADD THIS: Mock find_repo_by_id for the QNA generator
         repo_repo.find_repo_by_id = AsyncMock(return_value=sample_repo)
-        
+
         git_label_repo = MagicMock()
         git_label_repo.find_by_user_and_hosting = AsyncMock(
             return_value=MagicMock(token_value="token")
