@@ -149,11 +149,11 @@ class TestErrorRecoveryScenarios:
     async def test_processing_service_recovery_from_git_failures(self):
         """Test processing service recovery from git operation failures"""
         mock_repos = {
-            "context": MagicMock(),
-            "user": MagicMock(),
-            "repo": MagicMock(),
-            "git_label": MagicMock(),
-            "code_chunks": MagicMock(),
+            "context": AsyncMock(),
+            "user": AsyncMock(),
+            "repo": AsyncMock(),
+            "git_label": AsyncMock(),
+            "code_chunks": AsyncMock(),
         }
 
         for repo in mock_repos.values():
@@ -280,11 +280,11 @@ class TestMemoryAndResourceManagement:
     async def test_processing_service_resource_cleanup_on_failure(self):
         """Test that processing service cleans up resources on failure"""
         mock_repos = {
-            "context": MagicMock(),
-            "user": MagicMock(),
-            "repo": MagicMock(),
-            "git_label": MagicMock(),
-            "code_chunks": MagicMock(),
+            "context": AsyncMock(),
+            "user": AsyncMock(),
+            "repo": AsyncMock(),
+            "git_label": AsyncMock(),
+            "code_chunks": AsyncMock(),
         }
 
         for repo in mock_repos.values():
