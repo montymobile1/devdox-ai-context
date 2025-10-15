@@ -1070,12 +1070,14 @@ class TestProcessingService:
         mock_response = MagicMock()
         mock_response.data = [mock_embedding_data]
 
-        # Create mock structure
-        mock_embeddings = MagicMock()
-        mock_embeddings.create = AsyncMock(return_value=mock_response)
-
+        # Create mock client with async context manager support
         mock_client = MagicMock()
-        mock_client.embeddings = mock_embeddings
+        mock_client.embeddings = MagicMock()
+        mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+
+        # Mock the async context manager (__aenter__ and __aexit__)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        # mock_client.__aexit__ = AsyncMock(return_value=None)
 
         mock_together_class.return_value = mock_client
         mock_settings.TOGETHER_API_KEY = "test_key"
@@ -1090,6 +1092,11 @@ class TestProcessingService:
         assert embedding["vector_dimension"] == 5
         assert embedding["content"] == "def hello(): pass"
         assert embedding["file_name"] == "test.py"
+
+        # Verify context manager was used correctly
+        mock_client.__aenter__.assert_called_once()
+        mock_client.__aexit__.assert_called_once()
+        mock_client.embeddings.create.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("app.services.processing_service.AsyncTogether")
@@ -1116,6 +1123,7 @@ class TestProcessingService:
 
         mock_client = MagicMock()
         mock_client.embeddings.create.side_effect = Exception("API Error")
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_together_class.return_value = mock_client
 
         mock_settings.TOGETHER_API_KEY = "test_key"
