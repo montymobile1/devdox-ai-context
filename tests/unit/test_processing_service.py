@@ -463,9 +463,9 @@ class TestProcessingService:
         ) as mock_create_client:
             mock_client = MagicMock()
             mock_create_client.return_value = mock_client
-
+            
             result = await processing_service._get_authenticated_git_client(
-                user_id, git_provider, git_token
+                user_id=user_id, encryption_salt="encryption_salt", git_provider=git_provider, git_token=git_token
             )
 
             assert result == mock_client
@@ -474,9 +474,8 @@ class TestProcessingService:
             ].find_by_user_and_hosting.assert_called_once_with(
                 user_id, git_token, git_provider
             )
-            mock_repositories["user"].find_by_user_id.assert_called_once_with(user_id)
             mock_encryption_service.decrypt_for_user.assert_called_once_with(
-                sample_git_config.token_value, "decrypted_db_token"
+                sample_git_config.token_value, "encryption_salt"
             )
             mock_create_client.assert_called_once_with(git_provider, "decrypted_token")
 
@@ -983,7 +982,7 @@ class TestProcessingService:
             )
 
     @pytest.mark.asyncio
-    async def test_analyze_repository_no_files(
+    async def test_analyze_repository_no_files_B(
         self, processing_service, sample_documents
     ):
         """Test repository analysis when no dependency files or README found"""
