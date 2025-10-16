@@ -914,17 +914,17 @@ class ProcessingService:
         """Process chunks with concurrency control and retry logic."""
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async with AsyncTogether(api_key=settings.TOGETHER_API_KEY) as together_client:
+        together_client = AsyncTogether(api_key=settings.TOGETHER_API_KEY)
 
-            embeddings = await asyncio.gather(
-                *[
-                    create_embedding_with_retry(
-                        chunk, semaphore, model_api_string, together_client
-                    )
-                    for chunk in chunks
-                ],
-                return_exceptions=True,
-            )
+        embeddings = await asyncio.gather(
+            *[
+                create_embedding_with_retry(
+                    chunk, semaphore, model_api_string, together_client
+                )
+                for chunk in chunks
+            ],
+            return_exceptions=True,
+        )
 
         # Separate successful and failed embeddings
         successful_embeddings = []
