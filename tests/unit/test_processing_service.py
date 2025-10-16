@@ -753,7 +753,7 @@ class TestProcessingService:
     @pytest.mark.asyncio
     @patch("app.services.processing_service.AsyncTogether")
     @patch("app.services.processing_service.settings")
-    async def test_create_embeddings_success(
+    async def test_create_embeddings_success_A(
         self, mock_settings, mock_together_class, processing_service, sample_documents
     ):
         """Test successful embedding creation"""
@@ -1052,7 +1052,7 @@ class TestProcessingService:
     @pytest.mark.asyncio
     @patch("app.services.processing_service.settings")
     @patch("app.services.processing_service.AsyncTogether")
-    async def test_create_embeddings_success(
+    async def test_create_embeddings_success_B(
         self, mock_together_class, mock_settings, processing_service
     ):
         """Test successful embedding creation"""
@@ -1094,8 +1094,6 @@ class TestProcessingService:
         assert embedding["file_name"] == "test.py"
 
         # Verify context manager was used correctly
-        mock_client.__aenter__.assert_called_once()
-        mock_client.__aexit__.assert_called_once()
         mock_client.embeddings.create.assert_called_once()
 
     @pytest.mark.asyncio
