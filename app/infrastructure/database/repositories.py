@@ -5,8 +5,7 @@ from typing import List, Optional
 from app.core.exceptions import exception_constants
 from app.core.exceptions.local_exceptions import (
     ContextNotFoundError,
-    DatabaseError,
-    RepoNotFoundError,
+    DatabaseError
 )
 from models_src.dto.api_key import APIKeyResponseDTO
 from models_src.dto.code_chunks import CodeChunksRequestDTO, CodeChunksResponseDTO
@@ -241,7 +240,7 @@ class CodeChunksRepositoryHelper:
                     CodeChunksRequestDTO(
                         repo_id=repo_id,
                         user_id=user_id,
-                        content=result.get("content"),
+                        content=result.get("encrypted_content"),
                         embedding=result.get("embedding"),
                         metadata=result.get("metadata"),
                         file_name=result.get("file_name"),
