@@ -5,3 +5,10 @@ Repository Analysis Operation completed successfully.
 Repository: {% if repository_html_url %}{{ repository_html_url }}{% else %}-{% endif %}
 Branch: {% if repository_branch %}{{ repository_branch }}{% else %}-{% endif %}
 Queued at: {% if job_queued_at %}{{ job_queued_at }}{% else %}-{% endif %}
+
+Next steps:
+Open Getting Started: {{ getting_started_url|default('https://devdox.ai/dashboard/getting-started') }}
+
+—
+Devdox
+https://devdox.ai
