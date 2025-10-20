@@ -2,7 +2,7 @@ import asyncio
 from abc import abstractmethod
 from typing import Any, Optional, Protocol
 
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType, MultipartSubtypeEnum
+from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from jinja2 import TemplateNotFound, TemplateSyntaxError
 
 from app.core.config import MailSettings
@@ -155,7 +155,6 @@ class FastAPIMailClient(IMailClient):
 		
 		if message.text_fallback:
 			message_schema.alternative_body = message.text_fallback
-			message_schema.multipart_subtype= MultipartSubtypeEnum.alternative
 		
 		return await self._send_fast_mail(message=message_schema, timeout=timeout)
 
@@ -196,7 +195,6 @@ class FastAPIMailClient(IMailClient):
 		
 		if message.plain_template_fallback:
 			message_schema.alternative_body=text_fallback
-			message_schema.multipart_subtype=MultipartSubtypeEnum.alternative
 		
 		return await self._send_fast_mail(message=message_schema, template_name=message.html_template, timeout=timeout)
 	
