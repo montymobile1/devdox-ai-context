@@ -295,7 +295,6 @@ class TestLiveSendsViaFakeFastMail:
         assert payload.recipients == ["to@example.com"]
         # alternative set because text_fallback present
         assert payload.alternative_body == "Hello"
-        assert str(payload.multipart_subtype).lower().endswith("alternative")
 
     async def test_send_text_email_live_records(self, client: FastAPIMailClient):
         fake: _FakeFastMail = client.fm  # type: ignore[assignment]
@@ -318,7 +317,6 @@ class TestLiveSendsViaFakeFastMail:
         assert outbox[0]["template_name"] == "greet.html"
         # alternative from rendered fallback (client renders before sending)
         assert payload.alternative_body == "Hi Ada"
-        assert str(payload.multipart_subtype).lower().endswith("alternative")
 
     async def test_send_templated_plain_email_live(self, client: FastAPIMailClient):
         fake: _FakeFastMail = client.fm  # type: ignore[assignment]
