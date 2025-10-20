@@ -63,6 +63,40 @@
               </td>
             </tr>
 
+            <!-- Next steps / CTA -->
+            <tr>
+              <td style="padding:6px 24px 20px 24px;border-top:1px solid #e5e7eb;">
+                <div style="font-size:15px;font-weight:700;margin:8px 0 10px 0;color:#0f172a;">Next steps</div>
+                <div style="font-size:14px;color:#334155;margin-bottom:12px;">
+                  To continue, please visit the Getting Started page.
+                </div>
+                <table role="presentation" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td>
+                      <a href="{{ getting_started_url|default('https://devdox.ai/dashboard/getting-started') }}"
+                         style="display:inline-block;background:#111827;color:#ffffff;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:600;line-height:1;">
+                        Open Getting Started
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <div style="font-size:13px;color:#64748b;margin-top:10px;">
+                  Or paste this URL into your browser:<br>
+                  <span class="code" style="display:inline-block;margin-top:6px;">{{ getting_started_url|default('https://devdox.ai/dashboard/getting-started') }}</span>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:14px 24px;background:#f8fafc;border-top:1px solid #e5e7eb;text-align:center;">
+                <div style="font-size:12px;color:#94a3b8;">
+                  Sent by
+                  <a href="https://devdox.ai" style="color:#64748b;text-decoration:none;font-weight:700;">Devdox</a>
+                </div>
+              </td>
+            </tr>
+
           </table>
         </td>
       </tr>
