@@ -100,10 +100,9 @@ class QueueWorker:
                     continue
                 
                 tracker = await self._try_claim(job, queue_name)
-                if tracker is False:                     # explicitly not allowed to run
-                    await asyncio.sleep(poll_sleep)
-                    continue
-                
+                if not tracker:
+                    break
+
                 job_tracer = JobTraceMetaData() if enable_job_tracer else None
                 
                 await self._process_job(
@@ -128,7 +127,7 @@ class QueueWorker:
         """
         if not self.job_tracker_manager:
             return None
-        
+
         result = await self.job_tracker_manager.try_claim(
             worker_id=self.worker_id,
             queue_name=queue_name,
@@ -161,8 +160,7 @@ class QueueWorker:
         payload = job.get("payload") or {}
         
         self._seed_tracer(job_tracer, payload, job_type)
-        
-        _ = time.time()  # (kept as in your code)
+
         self.stats["current_job"] = job_id
         
         try:
@@ -299,20 +297,21 @@ class QueueWorker:
                         template=Template.PROJECT_ANALYSIS_FAILURE,
                         context=context,
                     )
-    
-                context = ProjectAnalysisSuccess(
-                    repository_html_url=serialized_model.get("repository_html_url"),
-                    repository_branch=serialized_model.get("repository_branch"),
-                    job_type=serialized_model.get("job_type"),
-                    job_queued_at=serialized_model.get("job_queued_at")
-                )
-                
-                email_dispatcher = get_email_dispatcher()
-                await email_dispatcher.send_templated_html(
-                    to=[job_tracer.user_email],
-                    template=Template.PROJECT_ANALYSIS_SUCCESS,
-                    context=context,
-                )
+                else:
+
+                    context = ProjectAnalysisSuccess(
+                        repository_html_url=serialized_model.get("repository_html_url"),
+                        repository_branch=serialized_model.get("repository_branch"),
+                        job_type=serialized_model.get("job_type"),
+                        job_queued_at=serialized_model.get("job_queued_at"),
+                    )
+
+                    email_dispatcher = get_email_dispatcher()
+                    await email_dispatcher.send_templated_html(
+                        to=[job_tracer.user_email],
+                        template=Template.PROJECT_ANALYSIS_SUCCESS,
+                        context=context,
+                    )
         except Exception:
             logging.exception("Error occurred while trying to send an email")
     

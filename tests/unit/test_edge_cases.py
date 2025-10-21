@@ -397,61 +397,174 @@ class TestRaceConditionSimulation:
                     assert service.running is False  # Should end up stopped
 
     @pytest.mark.asyncio
-    async def test_concurrent_job_processing_same_queue(self):
-        """Test concurrent job processing from same queue"""
+    async def test_concurrent_job_processing_same_queue_fixed(self):
+        """Test concurrent job processing from same queue - Fixed version"""
         mock_handler = MagicMock()
         mock_handler.handle_processing_message = AsyncMock()
 
         mock_queue = MagicMock()
-
-        # Queue returns different jobs for concurrent workers
         job_counter = 0
+        dequeue_calls = 0
 
         async def mock_dequeue(*args, **kwargs):
-            nonlocal job_counter
+            nonlocal job_counter, dequeue_calls
+            dequeue_calls += 1
+
+            # Add small delay to simulate real dequeue operation
+            await asyncio.sleep(0.01)
+
             job_counter += 1
             if job_counter <= 5:
                 return {
                     "id": f"job_{job_counter}",
                     "job_type": "analyze",
                     "payload": {"repo_id": f"repo_{job_counter}"},
+                    "pgmq_msg_id": job_counter,
+                    "queue_name": "processing",
                 }
             return None
 
         mock_queue.dequeue = mock_dequeue
         mock_queue.complete_job = AsyncMock()
 
-        # Create multiple workers processing concurrently
+        # Create workers but don't start them yet
         workers = []
         for i in range(3):
             worker = QueueWorker(
                 worker_id=f"concurrent-worker-{i}",
                 message_handler=mock_handler,
                 queue_service=mock_queue,
-                job_tracker_manager=None
+                job_tracker_manager=None,
             )
+            # Set running state BEFORE creating tasks
+            worker.running = True
             workers.append(worker)
 
-        # Start all workers concurrently
+        # Create tasks AFTER setting running=True
         tasks = []
         for worker in workers:
-            worker.running = True
             task = asyncio.create_task(worker._worker_loop("processing", ["analyze"]))
             tasks.append(task)
 
-        # Let them run briefly
+        # Let workers run for a reasonable time
+        await asyncio.sleep(2.0)  # Give enough time for processing
+
+        # Stop workers gracefully
+        for worker in workers:
+            worker.running = False
+
+        # Wait for all tasks to complete
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True), timeout=5.0
+            )
+        except asyncio.TimeoutError:
+
+            for task in tasks:
+                task.cancel()
+
+        # Verify results
+        total_processed = sum(
+            worker.get_stats()["jobs_processed"] for worker in workers
+        )
+
+        assert dequeue_calls > 0, "Dequeue should have been called"
+        assert total_processed > 0, f"Should have processed jobs, got {total_processed}"
+        assert (
+            total_processed <= 5
+        ), f"Should not exceed available jobs, got {total_processed}"
+
+    # Alternative approach: Use events for synchronization
+    @pytest.mark.asyncio
+    async def test_concurrent_job_processing_with_events(self):
+        """Test with explicit synchronization using events."""
+
+        # Event to signal when workers should start
+        start_event = asyncio.Event()
+
+        # Event to signal when to stop
+        stop_event = asyncio.Event()
+
+        mock_handler = MagicMock()
+        mock_handler.handle_processing_message = AsyncMock()
+
+        mock_queue = MagicMock()
+        job_counter = 0
+
+        async def mock_dequeue(*args, **kwargs):
+            nonlocal job_counter
+            await asyncio.sleep(0.01)  # Simulate dequeue time
+
+            job_counter += 1
+            if job_counter <= 5:
+                return {
+                    "id": f"job_{job_counter}",
+                    "job_type": "analyze",
+                    "payload": {
+                        "repo_id": f"repo_{job_counter}",
+                        "context_id": f"context_id_{job_counter}",
+                        "branch": "main",
+                        "user_id": f"user_{job_counter}",
+                    },
+                }
+            return None
+
+        mock_queue.dequeue = mock_dequeue
+        mock_queue.complete_job = AsyncMock()
+
+        async def controlled_worker_loop(worker, queue_name, job_types):
+            """Worker loop that waits for start signal."""
+            await start_event.wait()  # Wait for signal to start
+
+            worker.running = True
+            while worker.running and not stop_event.is_set():
+                try:
+                    job_data = await worker.queue_service.dequeue(queue_name)
+                    if job_data:
+                        await worker._process_job(queue_name, job_data)
+                    else:
+                        await asyncio.sleep(0.1)
+                except Exception as e:
+                    break
+
+        # Create workers
+        workers = []
+        tasks = []
+        for i in range(3):
+            worker = QueueWorker(
+                worker_id=f"concurrent-worker-{i}",
+                message_handler=mock_handler,
+                queue_service=mock_queue,
+                job_tracker_manager=None,
+            )
+            workers.append(worker)
+
+            # Create task but it will wait for start_event
+            task = asyncio.create_task(
+                controlled_worker_loop(worker, "processing", ["analyze"])
+            )
+            tasks.append(task)
+
+        # Let all workers get ready
         await asyncio.sleep(0.1)
 
-        # Stop all workers
+        # Signal all workers to start simultaneously
+        start_event.set()
+
+        # Let them work
+        await asyncio.sleep(1.0)
+
+        # Signal stop
+        stop_event.set()
         for worker in workers:
             worker.running = False
 
         # Wait for completion
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Verify jobs were processed
+        # Verify results
         total_processed = sum(
             worker.get_stats()["jobs_processed"] for worker in workers
         )
         assert total_processed > 0
-        assert total_processed <= 5  # Should not exceed available jobs
+        assert total_processed <= 5

@@ -164,7 +164,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize database
-        if TORTOISE_ORM:
+        if TORTOISE_ORM and not Tortoise._inited:
             await Tortoise.init(config=TORTOISE_ORM)
             logger.info("Database initialized")
 

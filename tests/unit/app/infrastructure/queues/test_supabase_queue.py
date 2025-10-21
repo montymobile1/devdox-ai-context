@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta, timezone
+import uuid
 import pytest
 
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
@@ -70,7 +71,7 @@ class FakePGMQueue:
 # Simple fakes to capture calls from SupabaseQueue
 class FakeJobTracker:
     def __init__(self, fail_on=None):
-
+        self.id = uuid.uuid4()
         self.completed_calls = 0
         self.retry_calls = []
         self.fail_calls = []
