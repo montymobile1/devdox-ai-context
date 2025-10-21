@@ -172,7 +172,9 @@ class SupabaseQueue:
             return None
 
         # Handle jobs that exceeded max attempts
-        if await self._handle_max_attempts_exceeded(message_data, message.msg_id, queue_name):
+        if await self._handle_max_attempts_exceeded(
+            message_data, message.msg_id, queue_name
+        ):
             return None
 
         # Skip jobs that aren't ready to be processed yet
@@ -492,7 +494,7 @@ class SupabaseQueue:
         )
 
         # as job_tracker_instance can be False
-        if job_tracker_instance and self.job_tracker_instance.id:
+        if job_tracker_instance and job_tracker_instance.id:
             try:
                 await job_tracker_instance.retry(message_id=str(new_msg_id))
             except Exception:

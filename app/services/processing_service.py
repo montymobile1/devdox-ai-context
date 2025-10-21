@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from app.infrastructure.database.repositories import (
     ContextRepositoryHelper,
     UserRepositoryHelper,
@@ -379,45 +379,65 @@ class ProcessingService:
                 "setup_instructions": "",
             }
 
-    async def remove_repository(self, relative_path: str) -> bool:
+    async def remove_repository(self, relative_path: Union[str, Path]) -> bool:
         """
         Remove a repository based on relative path from base directory.
 
         Args:
-            relative_path: The relative path  to the repository
+            relative_path: The relative path to the repository (str or Path)
 
         Returns:
             bool: True if removal was successful, False if repository didn't exist
 
         Raises:
-            ValueError: If the path attempts to escape the base directory
+            ValueError: If the path is invalid or attempts to escape the base directory
             OSError: If removal fails due to permissions or other filesystem issues
         """
 
-        # Security check: ensure the resolved path is within base_dir
         try:
-            repo_path = relative_path.resolve()
+            # Convert to Path object and validate
+            relative_path = Path(relative_path)
 
-            if not str(repo_path).startswith(str(self.base_dir.resolve())):
+            # Validate path components
+            if not relative_path.parts:
+                raise ValueError("Empty path provided")
+
+            # Check for problematic path components
+            if any(part in ("..", ".", "") for part in relative_path.parts):
+                raise ValueError(f"Path contains invalid components: {relative_path}")
+
+            # Resolve path relative to base directory
+            repo_path = (self.base_dir / relative_path).resolve()
+
+            # Security check: ensure resolved path is within base_dir
+            base_dir_resolved = self.base_dir.resolve()
+            if not str(repo_path).startswith(str(base_dir_resolved)):
                 raise ValueError(
-                    f"Path '{relative_path}' attempts to escape base directory"
+                    f"Path '{relative_path}' resolves outside base directory"
                 )
+
         except (OSError, ValueError) as e:
             raise ValueError(f"Invalid path '{relative_path}': {e}")
 
-        # Check if repository exists
-        if not repo_path.exists():
-            print(f"Repository at '{repo_path}' does not exist")
-            return False
-
-        if not repo_path.is_dir():
+            # Validate that path exists and is a directory before attempting removal
+        if repo_path.exists() and not repo_path.is_dir():
             raise ValueError(f"Path '{repo_path}' exists but is not a directory")
 
         try:
-            print(f"Removing repository at '{repo_path}'...")
+            logger.info(f"Removing repository at '{repo_path}'...")
             await asyncio.to_thread(shutil.rmtree, repo_path)
-            print(f"Successfully removed repository at '{repo_path}'")
+            logger.info(f"Successfully removed repository at '{repo_path}'")
             return True
+
+        except FileNotFoundError:
+            logger.warning(f"Repository at '{repo_path}' does not exist")
+            return False
+
+        except PermissionError as e:
+            raise OSError(
+                f"Permission denied removing repository at '{repo_path}': {e}"
+            )
+
         except OSError as e:
             raise OSError(f"Failed to remove repository at '{repo_path}': {e}")
 

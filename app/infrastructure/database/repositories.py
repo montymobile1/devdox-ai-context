@@ -233,7 +233,7 @@ class CodeChunksRepositoryHelper:
         try:
             objects = []
             for r in data:
-                dto = CodeChunksRequestDTO(
+                dto = CodeChunksResponseDTO(
                     repo_id=repo_id,
                     user_id=user_id,
                     content=r.get("encrypted_content"),
@@ -250,7 +250,6 @@ class CodeChunksRepositoryHelper:
             return objects[0] if objects else None
         except Exception as e:
             logger.error(f"Exception while storing embeddings: {e}")
-            print(f"Exception while storing embeddings: {e}")
             raise DatabaseError(
                 user_message=exception_constants.DB_CODE_CHUNKS_CREATE_FAILED
             ) from e

@@ -165,7 +165,6 @@ class TestQueueWorker:
         queue_worker.running = True
 
         await queue_worker._worker_loop("processing", ["analyze"])
-        print(" mock_sleep.call_count ", mock_sleep.call_count)
         # Should sleep when no jobs available
         assert mock_sleep.call_count >= 2
 
