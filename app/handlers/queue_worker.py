@@ -106,7 +106,8 @@ class QueueWorker:
                     continue
 
                 tracker = await self._try_claim(job, queue_name)
-                if not tracker:
+
+                if tracker is False:
                     break
 
                 job_tracer = JobTraceMetaData() if enable_job_tracer else None
@@ -118,7 +119,8 @@ class QueueWorker:
                 )
 
                 consecutive_failures = 0  # success → reset
-            except Exception:
+            except Exception as e:
+                print("line 126 ", e)
                 consecutive_failures += 1
                 if await self._backoff_or_stop(consecutive_failures, max_failures):
                     break
