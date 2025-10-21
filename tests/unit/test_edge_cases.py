@@ -10,6 +10,7 @@ from app.handlers.queue_worker import QueueWorker
 from app.services.processing_service import ProcessingService
 from app.services.auth_service import AuthService
 from app.infrastructure.queues.supabase_queue import SupabaseQueue
+from app.handlers.job_tracker import JobTracker, JobTrackerManager, ClaimResult
 from app.core.exceptions.local_exceptions import TokenLimitExceededError
 from tests.utils import TestDataFactory, MockFactory
 import tempfile
@@ -415,10 +416,16 @@ class TestRaceConditionSimulation:
 
             job_counter += 1
             if job_counter <= 5:
+
                 return {
                     "id": f"job_{job_counter}",
                     "job_type": "analyze",
-                    "payload": {"repo_id": f"repo_{job_counter}"},
+                     "payload": {
+                        "repo_id": f"repo_{job_counter}",
+                        "context_id": f"context_id_{job_counter}",
+                        "branch": "main",
+                        "user_id": f"user_{job_counter}",
+                    },
                     "pgmq_msg_id": job_counter,
                     "queue_name": "processing",
                 }
@@ -427,6 +434,26 @@ class TestRaceConditionSimulation:
         mock_queue.dequeue = mock_dequeue
         mock_queue.complete_job = AsyncMock()
 
+        # Create mock job tracker manager that returns actual trackers
+        mock_job_tracker_manager = MagicMock(spec=JobTrackerManager)
+
+        def create_mock_tracker(worker_id, message_id):
+            """Create a mock tracker for each job"""
+            mock_tracker = MagicMock(spec=JobTracker)
+            mock_tracker.update_step = AsyncMock()
+            mock_tracker.start = AsyncMock()
+            return mock_tracker
+
+        async def mock_try_claim(worker_id, queue_name, message_id):
+            """Mock try_claim that returns successful claim results"""
+            mock_tracker = create_mock_tracker(worker_id, message_id)
+            return ClaimResult(
+                qualifies_for_tracking=True,
+                tracker=mock_tracker
+            )
+
+        mock_job_tracker_manager.try_claim = mock_try_claim
+
         # Create workers but don't start them yet
         workers = []
         for i in range(3):
@@ -434,7 +461,7 @@ class TestRaceConditionSimulation:
                 worker_id=f"concurrent-worker-{i}",
                 message_handler=mock_handler,
                 queue_service=mock_queue,
-                job_tracker_manager=None,
+                job_tracker_manager=mock_job_tracker_manager,
             )
             # Set running state BEFORE creating tasks
             worker.running = True
@@ -467,7 +494,6 @@ class TestRaceConditionSimulation:
         total_processed = sum(
             worker.get_stats()["jobs_processed"] for worker in workers
         )
-
         assert dequeue_calls > 0, "Dequeue should have been called"
         assert total_processed > 0, f"Should have processed jobs, got {total_processed}"
         assert (
