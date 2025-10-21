@@ -14,7 +14,9 @@ from app.infrastructure.mailing_service import ProjectAnalysisFailure
 from app.core.mail_container import get_email_dispatcher
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 from app.infrastructure.mailing_service import Template
-from app.infrastructure.mailing_service.models.context_shapes import ProjectAnalysisSuccess
+from app.infrastructure.mailing_service.models.context_shapes import (
+    ProjectAnalysisSuccess,
+)
 from app.handlers.job_tracker import JobLevels, JobTracker, JobTrackerManager
 
 
@@ -27,7 +29,9 @@ class QueueWorker:
         worker_id: str = "worker-1",
         message_handler: MessageHandler = Provide[Container.message_handler],
         queue_service: SupabaseQueue = Provide[Container.queue_service],
-        job_tracker_manager: Optional[JobTrackerManager] = Provide[Container.job_tracker_factory],
+        job_tracker_manager: Optional[JobTrackerManager] = Provide[
+            Container.job_tracker_factory
+        ],
     ):
         self.worker_id = worker_id
         self.message_handler = message_handler
@@ -66,7 +70,7 @@ class QueueWorker:
         # Wait for current job to complete (with timeout)
         if self.stats["current_job"]:
             await asyncio.sleep(5)  # Grace period
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get worker statistics"""
         uptime = None
@@ -81,44 +85,44 @@ class QueueWorker:
             "running": self.running,
             "uptime_seconds": uptime,
         }
-    
+
     # ---------------------------------------------
     # _worker_loop
     # ---------------------------------------------
-    
-    async def _worker_loop(self, queue_name: str, job_types: list[str], enable_job_tracer: bool = True):
+
+    async def _worker_loop(
+        self, queue_name: str, job_types: list[str], enable_job_tracer: bool = True
+    ):
         """Worker loop for processing specific queue with job types."""
         consecutive_failures = 0
         max_failures = 5
         poll_sleep = settings.QUEUE_POLLING_INTERVAL_SECONDS or 5
-        
+
         while self.running:
             try:
                 job = await self.queue_service.dequeue(queue_name, job_types=job_types)
                 if not job:
                     await asyncio.sleep(poll_sleep)
                     continue
-                
+
                 tracker = await self._try_claim(job, queue_name)
-                if tracker is False:                     # explicitly not allowed to run
-                    await asyncio.sleep(poll_sleep)
-                    continue
-                
+                if not tracker:
+                    break
+
                 job_tracer = JobTraceMetaData() if enable_job_tracer else None
-                
                 await self._process_job(
                     queue_name,
                     job,
                     job_tracker_instance=(tracker or None),
                     job_tracer=job_tracer,
                 )
-                
+
                 consecutive_failures = 0  # success → reset
             except Exception:
                 consecutive_failures += 1
                 if await self._backoff_or_stop(consecutive_failures, max_failures):
                     break
-    
+
     async def _try_claim(self, job: dict, queue_name: str):
         """
         Returns:
@@ -128,76 +132,82 @@ class QueueWorker:
         """
         if not self.job_tracker_manager:
             return None
-        
+
         result = await self.job_tracker_manager.try_claim(
             worker_id=self.worker_id,
             queue_name=queue_name,
             message_id=job.get("id"),
         )
         return result.tracker if result.qualifies_for_tracking else False
-    
-    
+
     async def _backoff_or_stop(self, failures: int, max_failures: int) -> bool:
         """Sleep with exponential backoff. Return True if we should stop the loop."""
         if failures >= max_failures:
             return True
-        await asyncio.sleep(min(60, 2 ** failures))
+        await asyncio.sleep(min(60, 2**failures))
         return False
-    
+
     # ---------------------------------------------
     # _process_job
     # ---------------------------------------------
-    
+
     async def _process_job(
-            self,
-            queue_name: str,
-            job: Dict[str, Any],
-            job_tracker_instance: Optional[JobTracker] = None,
-            job_tracer: Optional[JobTraceMetaData] = None,
+        self,
+        queue_name: str,
+        job: Dict[str, Any],
+        job_tracker_instance: Optional[JobTracker] = None,
+        job_tracer: Optional[JobTraceMetaData] = None,
     ) -> None:
         """Process a single job with comprehensive error handling and monitoring."""
         job_id = job.get("id", "unknown")
         job_type = job.get("job_type", "unknown")
         payload = job.get("payload") or {}
-        
+
         self._seed_tracer(job_tracer, payload, job_type)
-        
-        _ = time.time()  # (kept as in your code)
+
         self.stats["current_job"] = job_id
-        
+
         try:
-            
+
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.DISPATCH)
-            
-            await self._dispatch_job(queue_name, job_type, payload, job_tracker_instance, job_tracer)
-            
+
+            await self._dispatch_job(
+                queue_name, job_type, payload, job_tracker_instance, job_tracer
+            )
+
             # Always complete (matches your current behavior even when dispatch no-ops)
-            
+
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.QUEUE_ACK)
-            
+
             await self.queue_service.complete_job(
                 job,
                 job_tracker_instance=job_tracker_instance,
                 job_tracer=job_tracer,
             )
-            
+
             self._mark_success()
-        
+
         except Exception as e:
-            logging.exception(f"Worker {self.worker_id} encountered an error processing job {job_id}")
+            logging.exception(
+                f"Worker {self.worker_id} encountered an error processing job {job_id}"
+            )
             self.stats["jobs_failed"] += 1
-            await self._fail_job_safe(job, err=e, tracker=job_tracker_instance, job_tracer=job_tracer)
-        
+            await self._fail_job_safe(
+                job, err=e, tracker=job_tracker_instance, job_tracer=job_tracer
+            )
+
         finally:
             self.stats["current_job"] = None
-            
+
             if job_tracer:
                 if job_tracker_instance:
-                    await job_tracker_instance.update_step(JobLevels.AUDIT_NOTIFICATIONS)
+                    await job_tracker_instance.update_step(
+                        JobLevels.AUDIT_NOTIFICATIONS
+                    )
                 await self.send_audit_email(job_tracer)
-    
+
     def _seed_tracer(self, job_tracer, payload: Dict[str, Any], job_type: str) -> None:
         if not job_tracer:
             return
@@ -208,9 +218,15 @@ class QueueWorker:
             job_type=job_type,
             repository_branch=payload.get("branch"),
         )
-    
-    async def _dispatch_job(self, queue_name: str, job_type: str, payload: Dict[str, Any],
-                            tracker, job_tracer) -> None:
+
+    async def _dispatch_job(
+        self,
+        queue_name: str,
+        job_type: str,
+        payload: Dict[str, Any],
+        tracker,
+        job_tracer,
+    ) -> None:
         """No-ops when queue/type don’t match; keeps the main flow branch-free."""
         if queue_name != "processing" or job_type not in ("analyze", "process"):
             return
@@ -219,12 +235,14 @@ class QueueWorker:
         await self.message_handler.handle_processing_message(
             payload, tracker, job_tracer=job_tracer
         )
-    
+
     def _mark_success(self) -> None:
         self.stats["jobs_processed"] += 1
         self.stats["last_job_time"] = datetime.now(timezone.utc)
-    
-    async def _fail_job_safe(self, job: Dict[str, Any], err: Exception, tracker, job_tracer) -> None:
+
+    async def _fail_job_safe(
+        self, job: Dict[str, Any], err: Exception, tracker, job_tracer
+    ) -> None:
         """Fail the job if possible; log/tracer on any internal failure without nesting in the caller."""
         is_perma_failure = False
         pgmq_id = job.get("pgmq_msg_id")
@@ -234,7 +252,7 @@ class QueueWorker:
             if job_tracer:
                 job_tracer.record_error(summary="Missing pgmq_msg_id", exc=err)
             return
-        
+
         try:
             is_perma_failure, _ = await self.queue_service.fail_job(
                 job,
@@ -250,7 +268,7 @@ class QueueWorker:
                     summary="Failed while marking job as failed",
                     exc=internal_fail_job_exception,
                 )
-        
+
     async def send_audit_email(self, job_tracer):
         try:
             if job_tracer:
@@ -265,15 +283,15 @@ class QueueWorker:
                         )
                     else:
                         is_failure_email = False
-                    
+
                     job_tracer.mark_job_settled()
-                
+
                 serialized_model = job_tracer.model_dump()
-                
+
                 if is_failure_email:
                     if not settings.mail.MAIL_AUDIT_RECIPIENTS:
                         raise RuntimeError("MAIL_AUDIT_RECIPIENTS is not configured")
-                    
+
                     context = ProjectAnalysisFailure(
                         repository_html_url=serialized_model["repository_html_url"],
                         user_email=serialized_model["user_email"],
@@ -292,31 +310,30 @@ class QueueWorker:
                         user_id=serialized_model["user_id"],
                         repo_id=serialized_model["repo_id"],
                     )
-                    
+
                     email_dispatcher = get_email_dispatcher()
                     await email_dispatcher.send_templated_html(
                         to=settings.mail.MAIL_AUDIT_RECIPIENTS,
                         template=Template.PROJECT_ANALYSIS_FAILURE,
                         context=context,
                     )
-    
-                context = ProjectAnalysisSuccess(
-                    repository_html_url=serialized_model.get("repository_html_url"),
-                    repository_branch=serialized_model.get("repository_branch"),
-                    job_type=serialized_model.get("job_type"),
-                    job_queued_at=serialized_model.get("job_queued_at")
-                )
-                
-                email_dispatcher = get_email_dispatcher()
-                await email_dispatcher.send_templated_html(
-                    to=[job_tracer.user_email],
-                    template=Template.PROJECT_ANALYSIS_SUCCESS,
-                    context=context,
-                )
+                else:
+
+                    context = ProjectAnalysisSuccess(
+                        repository_html_url=serialized_model.get("repository_html_url"),
+                        repository_branch=serialized_model.get("repository_branch"),
+                        job_type=serialized_model.get("job_type"),
+                        job_queued_at=serialized_model.get("job_queued_at"),
+                    )
+
+                    email_dispatcher = get_email_dispatcher()
+                    await email_dispatcher.send_templated_html(
+                        to=[job_tracer.user_email],
+                        template=Template.PROJECT_ANALYSIS_SUCCESS,
+                        context=context,
+                    )
         except Exception:
             logging.exception("Error occurred while trying to send an email")
-    
-    
 
 
 class WorkerHealthMonitor:

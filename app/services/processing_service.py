@@ -379,6 +379,48 @@ class ProcessingService:
                 "setup_instructions": "",
             }
 
+    async def remove_repository(self, relative_path: str) -> bool:
+        """
+        Remove a repository based on relative path from base directory.
+
+        Args:
+            relative_path: The relative path  to the repository
+
+        Returns:
+            bool: True if removal was successful, False if repository didn't exist
+
+        Raises:
+            ValueError: If the path attempts to escape the base directory
+            OSError: If removal fails due to permissions or other filesystem issues
+        """
+
+        # Security check: ensure the resolved path is within base_dir
+        try:
+            repo_path = relative_path.resolve()
+
+            if not str(repo_path).startswith(str(self.base_dir.resolve())):
+                raise ValueError(
+                    f"Path '{relative_path}' attempts to escape base directory"
+                )
+        except (OSError, ValueError) as e:
+            raise ValueError(f"Invalid path '{relative_path}': {e}")
+
+        # Check if repository exists
+        if not repo_path.exists():
+            print(f"Repository at '{repo_path}' does not exist")
+            return False
+
+        if not repo_path.is_dir():
+            raise ValueError(f"Path '{repo_path}' exists but is not a directory")
+
+        try:
+            print(f"Removing repository at '{repo_path}'...")
+            await asyncio.to_thread(shutil.rmtree, repo_path)
+            print(f"Successfully removed repository at '{repo_path}'")
+            return True
+        except OSError as e:
+            raise OSError(f"Failed to remove repository at '{repo_path}': {e}")
+
     async def prepare_repository(self, repo_name) -> Tuple[Path, str]:
         repo_path = self.base_dir / repo_name
 
@@ -466,29 +508,29 @@ class ProcessingService:
                 job_tracer.add_metadata(
                     repository_html_url=repo.html_url,
                 )
-            
+
             # -----------------------
             # GRAB USER
             # -----------------------
-            
+
             user = await self.user_info.find_by_user_id(job_payload["user_id"])
-            
+
             if job_tracer:
                 job_tracer.add_metadata(
                     user_email=user.email,
                 )
-            
+
             decrypted_encryption_salt = self.encryption_service.decrypt(
                 user.encryption_salt
             )
-            
+
             # -----------------------
             # AUTH
             # -----------------------
-            
+
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.AUTH)
-            
+
             # Get git credentials
             _ = await self._get_authenticated_git_client(
                 user_id=user.user_id,
@@ -516,6 +558,15 @@ class ProcessingService:
             files = self.clone_and_process_repository(
                 repo.html_url, str(relative_path), job_payload.get("branch", "main")
             )
+            if len(files) == 0:
+                return ProcessingResult(
+                    success=False,
+                    context_id=context_id,
+                    processing_time=0,
+                    chunks_created=0,
+                    embeddings_created=0,
+                    error_message="No files found in repository",
+                )
 
             repo_local = Repo(str(relative_path))
             commit_hash = repo_local.head.commit.hexsha
@@ -568,19 +619,21 @@ class ProcessingService:
 
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.VECTOR_STORE)
-            
+
             # Encrypt all contents
             for embed in embeddings:
                 content = embed.get("content")
-                encrypted_content = self.encryption_service.encrypt_for_user(content, decrypted_encryption_salt)
+                encrypted_content = self.encryption_service.encrypt_for_user(
+                    content, decrypted_encryption_salt
+                )
                 embed["encrypted_content"] = encrypted_content
-            
+
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
                 repo_id=str(repo.id),
                 user_id=repo.user_id,
                 data=embeddings,
-                commit_number=commit_hash
+                commit_number=commit_hash,
             )
 
             # Update context completion
@@ -601,6 +654,7 @@ class ProcessingService:
                 total_chunks=len(chunks),
                 total_embeddings=len(embeddings),
             )
+            await self.remove_repository(relative_path)
 
             return ProcessingResult(
                 success=True,
@@ -630,11 +684,7 @@ class ProcessingService:
             )
 
     async def _get_authenticated_git_client(
-        self,
-        user_id: str,
-        encryption_salt:str,
-        git_provider: str,
-        git_token: str
+        self, user_id: str, encryption_salt: str, git_provider: str, git_token: str
     ):
         """Get authenticated git client for user"""
 

@@ -2,6 +2,7 @@
 Alternative approach using asyncio signal handling
 This is cleaner and more reliable than threading approach
 """
+
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -45,7 +46,6 @@ class WorkerService:
         # Register signal handlers with the event loop
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, signal_received)
-
 
     async def _wait_for_shutdown(self):
         """Wait for shutdown signal and handle gracefully"""
@@ -112,7 +112,9 @@ class WorkerService:
                     try:
                         await asyncio.sleep(10)
                     except asyncio.CancelledError:
-                        logger.info(f"Worker {worker.worker_id} error recovery cancelled")
+                        logger.info(
+                            f"Worker {worker.worker_id} error recovery cancelled"
+                        )
                         raise
 
     async def shutdown(self):
@@ -140,12 +142,11 @@ class WorkerService:
             try:
                 await asyncio.wait_for(
                     asyncio.gather(*shutdown_tasks, return_exceptions=True),
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 logger.info("All workers stopped gracefully")
             except asyncio.TimeoutError:
                 logger.warning("Worker shutdown timeout")
-
 
         logger.info("Shutdown complete")
 
@@ -164,7 +165,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize database
-        if TORTOISE_ORM:
+        if TORTOISE_ORM and not Tortoise._inited:
             await Tortoise.init(config=TORTOISE_ORM)
             logger.info("Database initialized")
 
@@ -203,7 +204,7 @@ app = FastAPI(
     version=settings.VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # The rest of your FastAPI setup...
@@ -226,18 +227,20 @@ async def health_check():
         "message": "DevDox AI Context API is running!",
         "version": settings.VERSION,
         "workers_running": worker_service.running if worker_service else False,
-        "worker_count": len(worker_service.workers) if worker_service else 0
+        "worker_count": len(worker_service.workers) if worker_service else 0,
     }
+
 
 def main():
     uvicorn.run(
         "app.main:app",
-        host = settings.HOST,
-        port = settings.PORT,
-        reload = False,
-        log_level = "info"
-           )
-        
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=False,
+        log_level="info",
+    )
+
+
 if __name__ == "__main__":
 
     main()

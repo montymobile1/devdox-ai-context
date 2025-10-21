@@ -3,10 +3,7 @@ import logging
 from typing import List, Optional
 
 from app.core.exceptions import exception_constants
-from app.core.exceptions.local_exceptions import (
-    ContextNotFoundError,
-    DatabaseError
-)
+from app.core.exceptions.local_exceptions import ContextNotFoundError, DatabaseError
 from models_src.dto.api_key import APIKeyResponseDTO
 from models_src.dto.code_chunks import CodeChunksRequestDTO, CodeChunksResponseDTO
 from models_src.dto.git_label import GitLabelResponseDTO
@@ -234,28 +231,26 @@ class CodeChunksRepositoryHelper:
         self, repo_id: str, user_id: str, data: List[dict], commit_number: str
     ) -> Optional[CodeChunksResponseDTO]:
         try:
-            created_chunks = []
-            for result in data:
-                chunk = await self._repo.save(
-                    CodeChunksRequestDTO(
-                        repo_id=repo_id,
-                        user_id=user_id,
-                        content=result.get("encrypted_content"),
-                        embedding=result.get("embedding"),
-                        metadata=result.get("metadata"),
-                        file_name=result.get("file_name"),
-                        file_path=result.get("file_path"),
-                        file_size=result.get("file_size"),
-                        commit_number=commit_number,
-                    )
+            objects = []
+            for r in data:
+                dto = CodeChunksRequestDTO(
+                    repo_id=repo_id,
+                    user_id=user_id,
+                    content=r.get("encrypted_content"),
+                    embedding=r.get("embedding"),
+                    metadata=r.get("metadata"),
+                    file_name=r.get("file_name"),
+                    file_path=r.get("file_path"),
+                    file_size=r.get("file_size"),
+                    commit_number=commit_number,
                 )
-                created_chunks.append(chunk)
-
-            count = len(created_chunks) if created_chunks else 0
-
-            logger.info(f"Stored {len(created_chunks)} embeddings for repo {repo_id}")
-            return created_chunks[0] if count else None
+                objects.append(dto)
+            await self._repo.bulk_save(objects)
+            logger.info(f"Stored {len(objects)} embeddings for repo {repo_id}")
+            return objects[0] if objects else None
         except Exception as e:
+            logger.error(f"Exception while storing embeddings: {e}")
+            print(f"Exception while storing embeddings: {e}")
             raise DatabaseError(
                 user_message=exception_constants.DB_CODE_CHUNKS_CREATE_FAILED
             ) from e

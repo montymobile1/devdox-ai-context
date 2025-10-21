@@ -21,16 +21,24 @@ if claim_result.qualifies_for_tracking:
     ...
 ```
 """
+
 import datetime
 import logging
 from enum import Enum
 from typing import NamedTuple, Optional
-
-from models_src.dto.queue_job_claim_registry import QueueProcessingRegistryRequestDTO, \
-    QueueProcessingRegistryResponseDTO
-from models_src.models.queue_job_claim_registry import QRegistryStat, queue_processing_registry_one_claim_unique
-from models_src.repositories.queue_job_claim_registry import TortoiseQueueProcessingRegistryStore
-from tortoise.exceptions import IntegrityError
+import asyncio
+from models_src.dto.queue_job_claim_registry import (
+    QueueProcessingRegistryRequestDTO,
+    QueueProcessingRegistryResponseDTO,
+)
+from models_src.models.queue_job_claim_registry import (
+    QRegistryStat,
+    queue_processing_registry_one_claim_unique,
+)
+from models_src.repositories.queue_job_claim_registry import (
+    TortoiseQueueProcessingRegistryStore,
+)
+from tortoise.exceptions import IntegrityError, OperationalError
 
 
 class JobLevels(str, Enum):
@@ -40,24 +48,25 @@ class JobLevels(str, Enum):
     Each step represents a logical phase in the job processing pipeline.
     The values are persisted in the database for tracking progress.
     """
-    START            = "start"             # set on successful claim
-    DISPATCH         = "dispatch"          # worker is dispatching the job
-    PROCESSING       = "processing"        # message handler took over
-    PRECHECKS        = "prechecks"         # validating inputs / fetching repo record
-    AUTH             = "auth"              # building authenticated git client
-    WORKDIR          = "workdir"           # preparing local work directory
-    SOURCE_FETCH     = "source_fetch"      # cloning / loading repo contents
-    CHUNKING         = "chunking"          # splitting docs/files into chunks
-    ANALYSIS         = "analysis"          # repository analysis phase (README/deps/etc.)
-    EMBEDDINGS       = "embeddings"        # embedding generation phase
-    VECTOR_STORE     = "vector_store"      # persisting vectors/metadata
+
+    START = "start"  # set on successful claim
+    DISPATCH = "dispatch"  # worker is dispatching the job
+    PROCESSING = "processing"  # message handler took over
+    PRECHECKS = "prechecks"  # validating inputs / fetching repo record
+    AUTH = "auth"  # building authenticated git client
+    WORKDIR = "workdir"  # preparing local work directory
+    SOURCE_FETCH = "source_fetch"  # cloning / loading repo contents
+    CHUNKING = "chunking"  # splitting docs/files into chunks
+    ANALYSIS = "analysis"  # repository analysis phase (README/deps/etc.)
+    EMBEDDINGS = "embeddings"  # embedding generation phase
+    VECTOR_STORE = "vector_store"  # persisting vectors/metadata
     CONTEXT_FINALIZE = "context_finalize"  # updating domain context (status, counts)
-    QUEUE_ACK        = "queue_ack"         # acknowledging/finishing the queue message
-    AUDIT_NOTIFICATIONS    = "audit_notifications"     # emails/audit notifications phase
-    DONE             = "done"              # terminal phase
+    QUEUE_ACK = "queue_ack"  # acknowledging/finishing the queue message
+    AUDIT_NOTIFICATIONS = "audit_notifications"  # emails/audit notifications phase
+    DONE = "done"  # terminal phase
+
 
 class JobTracker:
-    
     """
     Represents a claimed job instance and provides operations to update its state.
 
@@ -66,11 +75,14 @@ class JobTracker:
 
     Instances are constructed only through `JobTrackerManager.try_claim`.
     """
+
     def __init__(
-            self, worker_id: str, queue_name: str,
-            tracked_claim:QueueProcessingRegistryResponseDTO,
-            initial_step: Optional[JobLevels] = None,
-            queue_processing_registry_store=None
+        self,
+        worker_id: str,
+        queue_name: str,
+        tracked_claim: QueueProcessingRegistryResponseDTO,
+        initial_step: Optional[JobLevels] = None,
+        queue_processing_registry_store=None,
     ):
         """
         __tracked_claim: The ORM database Object of the claimed job.
@@ -80,11 +92,13 @@ class JobTracker:
         __queue_processing_registry_store: Repository for queue job tracker
         """
         self.__tracked_claim: QueueProcessingRegistryResponseDTO = tracked_claim
-        self.__queue_processing_registry_store = queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
+        self.__queue_processing_registry_store = (
+            queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
+        )
         self.__worker_id = worker_id
         self.__queue_name = queue_name
         self.__step = initial_step
-    
+
     @property
     def tracked_claim(self) -> QueueProcessingRegistryResponseDTO:
         return self.__tracked_claim
@@ -100,7 +114,7 @@ class JobTracker:
     @property
     def step(self) -> Optional[JobLevels]:
         return self.__step
-    
+
     async def update_step(self, step: JobLevels):
         """
         Updates the job's current step in both memory and database.
@@ -108,25 +122,24 @@ class JobTracker:
         Args:
             step (JobLevels): The new step to assign.
         """
-        await self.__queue_processing_registry_store.update_step_by_id(
-            id=str(self.tracked_claim.id),
-            step=step.value
-        )
-        
+        # As sometimes the self.tracked_claim  is False
+        if self.tracked_claim and self.tracked_claim.id:
+            await self.__queue_processing_registry_store.update_step_by_id(
+                id=str(self.tracked_claim.id), step=step.value
+            )
+
         self.__step = step
-        
 
     async def start(self):
         """
         Marks the job as IN_PROGRESS in both memory and database.
         """
-        
+
         await self.__queue_processing_registry_store.update_status_or_message_id_by_id(
-            id=str(self.tracked_claim.id),
-            status=QRegistryStat.IN_PROGRESS
+            id=str(self.tracked_claim.id), status=QRegistryStat.IN_PROGRESS
         )
 
-    async def fail(self, message_id: Optional[str]=None):
+    async def fail(self, message_id: Optional[str] = None):
         """
         Marks the job as FAILED and optionally updates its message ID in database.
 
@@ -136,9 +149,8 @@ class JobTracker:
         await self.__queue_processing_registry_store.update_status_or_message_id_by_id(
             id=str(self.tracked_claim.id),
             status=QRegistryStat.FAILED,
-            message_id=message_id
+            message_id=message_id,
         )
-
 
     async def retry(self, message_id: str):
         """
@@ -150,7 +162,7 @@ class JobTracker:
         await self.__queue_processing_registry_store.update_status_or_message_id_by_id(
             id=str(self.tracked_claim.id),
             status=QRegistryStat.RETRY,
-            message_id=message_id
+            message_id=message_id,
         )
 
     async def completed(self):
@@ -160,11 +172,11 @@ class JobTracker:
         await self.__queue_processing_registry_store.update_status_and_step_by_id(
             id=str(self.tracked_claim.id),
             status=QRegistryStat.COMPLETED,
-            step=JobLevels.DONE.value
+            step=JobLevels.DONE.value,
         )
-        
+
         self.__step = JobLevels.DONE
-        
+
 
 class ClaimResult(NamedTuple):
     """
@@ -174,8 +186,10 @@ class ClaimResult(NamedTuple):
         qualifies_for_tracking (bool): Indicates whether the job was successfully claimed.
         tracker (Optional[JobTracker]): The tracker for the claimed job, or None if claim failed.
     """
+
     qualifies_for_tracking: bool
     tracker: Optional[JobTracker]
+
 
 class JobTrackerManager:
     """
@@ -184,57 +198,131 @@ class JobTrackerManager:
     This is the main entry point of the module. It ensures that jobs are only claimed
     when eligible, and enforces single-worker ownership per job.
     """
+
     def __init__(self, queue_processing_registry_store=None):
-        self.__queue_processing_registry_store=queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
-    
-    async def try_claim(self, worker_id:str, message_id:str, queue_name:str) -> ClaimResult:
+        self.__queue_processing_registry_store = (
+            queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
+        )
+
+    async def try_claim(
+        self, worker_id: str, message_id: str, queue_name: str
+    ) -> ClaimResult:
         """
         Attempts to claim a job from the queue.
 
-        A job can only be claimed if:
+        A job can be claimed if:
         - It was never claimed before
         - Or its latest state is FAILED or RETRY
 
         Returns:
-            ClaimResult: Whether the claim was successful, and a tracker if it was.
+            ClaimResult: whether the claim succeeded and a JobTracker if yes
         """
         now = datetime.datetime.now(datetime.timezone.utc)
-        try:
 
-            # Get the last message attached to this message_id if present
+        try:
+            # --- Step 1: Retrieve latest message status ---
             previous_latest_message = await self.__queue_processing_registry_store.find_previous_latest_message_by_message_id(
                 message_id=message_id,
             )
 
-            if not previous_latest_message or (previous_latest_message and previous_latest_message.status in [QRegistryStat.FAILED, QRegistryStat.RETRY]
-            ):
+            logging.debug(
+                f"Previous latest message for {message_id}: {previous_latest_message}"
+            )
 
-                initial_step = JobLevels.START
-                
-                claim = await self.__queue_processing_registry_store.save(
-                    QueueProcessingRegistryRequestDTO(
-                        message_id=message_id,
-                        queue_name=queue_name,
-                        step=initial_step.value,
-                        status=QRegistryStat.PENDING,
-                        claimed_by=worker_id,
-                        claimed_at=now,
-                        updated_at=now,
-                        previous_message_id=previous_latest_message.id if previous_latest_message else None
-                    )
+            # --- Step 2: Check eligibility for claiming ---
+            if previous_latest_message and previous_latest_message.status not in [
+                QRegistryStat.FAILED,
+                QRegistryStat.RETRY,
+            ]:
+                logging.info(
+                    f"Job {message_id} already handled or in progress by another worker"
                 )
 
-                return ClaimResult(True, tracker=JobTracker(worker_id, queue_name, tracked_claim=claim, initial_step=initial_step))
-            else:
-                # Already Handled or being handled
                 return ClaimResult(False, None)
 
+            # --- Step 3: Attempt to create claim entry with retries ---
+            initial_step = JobLevels.START
+            dto = QueueProcessingRegistryRequestDTO(
+                message_id=message_id,
+                queue_name=queue_name,
+                step=initial_step.value,
+                status=QRegistryStat.PENDING,
+                claimed_by=worker_id,
+                claimed_at=now,
+                updated_at=now,
+                previous_message_id=(
+                    previous_latest_message.id if previous_latest_message else None
+                ),
+            )
+
+            claim = await self._save_with_retries(dto)
+            logging.info(f"Worker {worker_id} successfully claimed job {message_id}")
+
+            return ClaimResult(
+                True,
+                tracker=JobTracker(
+                    worker_id,
+                    queue_name,
+                    tracked_claim=claim,
+                    initial_step=initial_step,
+                ),
+            )
+
         except IntegrityError as e:
+            # Likely a race condition — someone else claimed first
+            if "queue_processing_registry_one_claim_unique" in str(e):
 
-            if queue_processing_registry_one_claim_unique in str(e):
-                return ClaimResult(False, None)  # Someone else already claimed it
+                logging.warning(
+                    f"Worker {worker_id} failed to claim {message_id} — already claimed"
+                )
 
+                return ClaimResult(False, None)
+            logging.exception(f"Integrity error while claiming job {message_id}")
             raise
-        except Exception:
-            logging.exception("Exception occurred while attempting to try_claim")
+
+        except (asyncio.TimeoutError, OperationalError) as e:
+            logging.error(
+                f"Database connection timeout while claiming job {message_id}: {e}"
+            )
             raise
+
+        except Exception as e:
+            logging.exception(
+                f"Unexpected error while attempting to claim job {message_id}: {e}"
+            )
+            raise
+
+    # ----------------------------------------------------------------------
+    # Internal helper with retries for transient DB/network issues
+    # ----------------------------------------------------------------------
+
+    async def _save_with_retries(self, dto, max_retries: int = 3, delay: float = 1.0):
+        """Attempts to save the claim record with limited retries."""
+        for attempt in range(1, max_retries + 1):
+            try:
+                claim = await asyncio.wait_for(
+                    self.__queue_processing_registry_store.save(dto),
+                    timeout=15.0,  # hard cap per insert attempt
+                )
+                return claim
+            except asyncio.TimeoutError:
+                logging.warning(
+                    f"[Attempt {attempt}/{max_retries}] Timeout while saving claim for {dto.message_id}"
+                )
+
+            except OperationalError as e:
+
+                logging.warning(
+                    f"[Attempt {attempt}/{max_retries}] DB operation failed (possibly transient): {e}"
+                )
+            except Exception as e:
+
+                logging.error(
+                    f"[Attempt {attempt}/{max_retries}] Unexpected error during save: {e}"
+                )
+
+            if attempt < max_retries:
+                await asyncio.sleep(delay * attempt)  # exponential backoff
+
+        # If all retries fail, raise an explicit error
+        return False
