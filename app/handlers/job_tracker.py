@@ -256,10 +256,6 @@ class JobTrackerManager:
             )
 
             claim = await self._save_with_retries(dto)
-            if claim is False:
-                logging.warning(f"Failed to save claim for {message_id} after retries")
-                return ClaimResult(False, None)
-
             logging.info(f"Worker {worker_id} successfully claimed job {message_id}")
 
             return ClaimResult(
@@ -275,9 +271,11 @@ class JobTrackerManager:
         except IntegrityError as e:
             # Likely a race condition — someone else claimed first
             if "queue_processing_registry_one_claim_unique" in str(e):
+
                 logging.warning(
                     f"Worker {worker_id} failed to claim {message_id} — already claimed"
                 )
+
                 return ClaimResult(False, None)
             logging.exception(f"Integrity error while claiming job {message_id}")
             raise

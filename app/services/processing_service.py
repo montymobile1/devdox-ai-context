@@ -528,29 +528,29 @@ class ProcessingService:
                 job_tracer.add_metadata(
                     repository_html_url=repo.html_url,
                 )
-            
+
             # -----------------------
             # GRAB USER
             # -----------------------
-            
+
             user = await self.user_info.find_by_user_id(job_payload["user_id"])
-            
+
             if job_tracer:
                 job_tracer.add_metadata(
                     user_email=user.email,
                 )
-            
+
             decrypted_encryption_salt = self.encryption_service.decrypt(
                 user.encryption_salt
             )
-            
+
             # -----------------------
             # AUTH
             # -----------------------
-            
+
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.AUTH)
-            
+
             # Get git credentials
             _ = await self._get_authenticated_git_client(
                 user_id=user.user_id,
@@ -639,19 +639,21 @@ class ProcessingService:
 
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.VECTOR_STORE)
-            
+
             # Encrypt all contents
             for embed in embeddings:
                 content = embed.get("content")
-                encrypted_content = self.encryption_service.encrypt_for_user(content, decrypted_encryption_salt)
+                encrypted_content = self.encryption_service.encrypt_for_user(
+                    content, decrypted_encryption_salt
+                )
                 embed["encrypted_content"] = encrypted_content
-            
+
             # Store in vector database
             _ = await self.code_chunks_repository.store_emebeddings(
                 repo_id=str(repo.id),
                 user_id=repo.user_id,
                 data=embeddings,
-                commit_number=commit_hash
+                commit_number=commit_hash,
             )
 
             # Update context completion
@@ -702,11 +704,7 @@ class ProcessingService:
             )
 
     async def _get_authenticated_git_client(
-        self,
-        user_id: str,
-        encryption_salt:str,
-        git_provider: str,
-        git_token: str
+        self, user_id: str, encryption_salt: str, git_provider: str, git_token: str
     ):
         """Get authenticated git client for user"""
 

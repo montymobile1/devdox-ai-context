@@ -26,22 +26,27 @@ class MessageHandler:
         self.processing_service = processing_service
         self.queue_service = queue_service
 
-    async def handle_processing_message(self, job_payload: Dict[str, Any], job_tracker_instance:Optional[JobTracker]=None, job_tracer:Optional[JobTraceMetaData] = None) -> None:
+    async def handle_processing_message(
+        self,
+        job_payload: Dict[str, Any],
+        job_tracker_instance: Optional[JobTracker] = None,
+        job_tracer: Optional[JobTraceMetaData] = None,
+    ) -> None:
         """Handle repository processing message"""
 
         try:
             # Process the repository
             if job_tracer:
                 job_tracer.mark_job_started()
-            
+
             if job_tracker_instance:
                 await job_tracker_instance.update_step(JobLevels.PROCESSING)
-            
-            result = await self.processing_service.process_repository(job_payload, job_tracker_instance, job_tracer=job_tracer)
-            
+
+            result = await self.processing_service.process_repository(
+                job_payload, job_tracker_instance, job_tracer=job_tracer
+            )
             if result.success:
                 logger.info(f"Successfully processed context {result.context_id}")
-
                 # Consume tokens based on actual usage
                 if result.chunks_created:
                     # Rough calculation: 1 token per chunk
@@ -60,20 +65,16 @@ class MessageHandler:
                         )
 
             else:
-                
+
                 log_message = f"Failed to process context {result.context_id}"
-                
-                logger.error(
-                    f"{log_message}: {result.error_message}"
-                )
-                
+
+                logger.error(f"{log_message}: {result.error_message}")
+
                 if job_tracer:
                     job_tracer.record_error(
-                        summary=log_message,
-                        exc=result.error_object
+                        summary=log_message, exc=result.error_object
                     )
-                
-                
+
         except Exception as e:
             logger.error(f"Failed to handle processing message: {str(e)}")
             raise
