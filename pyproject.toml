@@ -45,7 +45,7 @@ dependencies = [
     "together==1.5.17",
     "tiktoken==0.7",
     "tenacity==9.1.2",
-    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@a34f8d1",
+    "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@DEV-35-add-a-statues-enum-for-the-property-on-evdox-ai-models-to-streamline-and-modularize-the-code-and-add-a-missing-column",
     "devdox-ai-git @ git+https://github.com/montymobile1/devdox-ai-git@e36ee1a",
     "devdox-ai-encryption @ git+https://github.com/montymobile1/devdox-ai-encryption.git@4eefae1",
 ]
