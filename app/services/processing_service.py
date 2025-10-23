@@ -5,7 +5,7 @@ import shutil
 import uuid
 from uuid import UUID
 
-
+from models_src.models.repo import StatusTypes
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -486,7 +486,11 @@ class ProcessingService:
             return documents
         except Exception:
             return []
-
+    
+    async def _job_step_update(self, job_tracker_instance, step: JobLevels):
+        if job_tracker_instance:
+            await job_tracker_instance.update_step(step)
+    
     async def process_repository(
         self,
         job_payload: Dict[str, Any],
@@ -504,9 +508,7 @@ class ProcessingService:
             # -----------------------
             # PRECHECKS
             # -----------------------
-
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.PRECHECKS)
+            await self._job_step_update(job_tracker_instance, JobLevels.PRECHECKS)
 
             # Get repository information
 
@@ -523,7 +525,16 @@ class ProcessingService:
                     embeddings_created=0,
                     error_message="Repository not found",
                 )
-
+            
+            await self.context_repository.update_status(
+                str(repo.id),
+                status=StatusTypes.IN_PROGRESS,
+                processing_end_time=repo.processing_end_time,
+                total_files=repo.total_files,
+                total_chunks=repo.total_chunks,
+                total_embeddings=0,
+            )
+            
             if job_tracer:
                 job_tracer.add_metadata(
                     repository_html_url=repo.html_url,
@@ -547,9 +558,7 @@ class ProcessingService:
             # -----------------------
             # AUTH
             # -----------------------
-
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.AUTH)
+            await self._job_step_update(job_tracker_instance, JobLevels.AUTH)
 
             # Get git credentials
             _ = await self._get_authenticated_git_client(
@@ -562,8 +571,7 @@ class ProcessingService:
             # -----------------------
             # WORKDIR
             # -----------------------
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.WORKDIR)
+            await self._job_step_update(job_tracker_instance, JobLevels.WORKDIR)
 
             # Fetch repository files
             relative_path = await self.prepare_repository(repo.repo_name)
@@ -571,9 +579,7 @@ class ProcessingService:
             # -----------------------
             # SOURCE_FETCH
             # -----------------------
-
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.SOURCE_FETCH)
+            await self._job_step_update(job_tracker_instance, JobLevels.SOURCE_FETCH)
 
             files = self.clone_and_process_repository(
                 repo.html_url, str(relative_path), job_payload.get("branch", "main")
@@ -604,8 +610,7 @@ class ProcessingService:
             # -----------------------
             # CHUNKING
             # -----------------------
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.CHUNKING)
+            await self._job_step_update(job_tracker_instance, JobLevels.CHUNKING)
 
             # Process files into chunks
             chunks = self._process_files_to_chunks(files)
@@ -624,9 +629,7 @@ class ProcessingService:
             # -----------------------
             # EMBEDDINGS
             # -----------------------
-
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.EMBEDDINGS)
+            await self._job_step_update(job_tracker_instance, JobLevels.EMBEDDINGS)
 
             embeddings = await self._create_embeddings(
                 chunks,
@@ -636,9 +639,7 @@ class ProcessingService:
             # -----------------------
             # VECTOR_STORE
             # -----------------------
-
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.VECTOR_STORE)
+            await self._job_step_update(job_tracker_instance, JobLevels.VECTOR_STORE)
 
             # Encrypt all contents
             for embed in embeddings:
@@ -663,12 +664,11 @@ class ProcessingService:
             # -----------------------
             # CONTEXT_FINALIZE
             # -----------------------
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.CONTEXT_FINALIZE)
+            await self._job_step_update(job_tracker_instance, JobLevels.CONTEXT_FINALIZE)
 
             await self.context_repository.update_status(
                 str(repo.id),
-                "completed",
+                status=StatusTypes.COMPLETED,
                 processing_end_time=end_time,
                 total_files=len(files),
                 total_chunks=len(chunks),
@@ -689,7 +689,7 @@ class ProcessingService:
 
             await self.context_repository.update_status(
                 str(repo.id),
-                "failed",
+                status=StatusTypes.FAILED,
                 processing_end_time=datetime.now(timezone.utc),
                 total_files=0,
                 total_chunks=0,
@@ -937,8 +937,7 @@ class ProcessingService:
     ) -> Optional[bool | None]:
         """Analyze repository based on dependency files and save to database"""
         try:
-            if job_tracker_instance:
-                await job_tracker_instance.update_step(JobLevels.ANALYSIS)
+            await self._job_step_update(job_tracker_instance, JobLevels.ANALYSIS)
 
             # Extract dependency files
             dependency_files = self._extract_dependency_files(
