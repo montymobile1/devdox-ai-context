@@ -408,7 +408,7 @@ class ProcessingService:
                 raise ValueError(f"Path contains invalid components: {relative_path}")
 
             # Resolve path relative to base directory
-            repo_path = (self.base_dir / relative_path).resolve()
+            repo_path = relative_path.resolve()
 
             # Security check: ensure resolved path is within base_dir
             base_dir_resolved = self.base_dir.resolve()
