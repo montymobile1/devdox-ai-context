@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple
 from app.infrastructure.database.repositories import (
     ContextRepositoryHelper,
     UserRepositoryHelper,
@@ -712,9 +712,9 @@ class ProcessingService:
         git_config = await self.git_label_repository.find_by_user_and_hosting(
             user_id, git_token, git_provider
         )
-        # TODO : check if needed
-        # if not git_config:
-        #     raise Exception(f"No {git_provider} configuration found for user")
+        
+        if not git_config:
+           raise Exception(f"No {git_provider} configuration found for user")
 
         # Decrypt the stored token
         decrypted_token = self.encryption_service.decrypt_for_user(
