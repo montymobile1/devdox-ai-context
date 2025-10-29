@@ -379,7 +379,7 @@ class ProcessingService:
                 "setup_instructions": "",
             }
 
-    async def remove_repository(self, relative_path: Union[str, Path]) -> bool:
+    async def remove_repository(self, relative_path: str | Path) -> bool:
         """
         Remove a repository based on relative path from base directory.
 
