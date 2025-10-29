@@ -107,8 +107,8 @@ class QueueWorker:
                 tracker = await self._try_claim(job, queue_name)
 
                 if tracker is False:
-                    break
-                
+                    continue
+
                 job_tracer = JobTraceMetaData() if enable_job_tracer else None
                 await self._process_job(
                     queue_name,
