@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple
 from app.infrastructure.database.repositories import (
     ContextRepositoryHelper,
     UserRepositoryHelper,
@@ -34,6 +34,7 @@ from app.schemas.processing_result import ProcessingResult
 from app.core.config import settings
 from app.infrastructure.job_tracer.job_trace_metadata import JobTraceMetaData
 from app.handlers.job_tracker import JobLevels, JobTracker
+from app.exceptions.base_exceptions import DevDoxContextException
 
 logger = logging.getLogger(__name__)
 
@@ -379,7 +380,7 @@ class ProcessingService:
                 "setup_instructions": "",
             }
 
-    async def remove_repository(self, relative_path: Union[str, Path]) -> bool:
+    async def remove_repository(self, relative_path: str | Path) -> bool:
         """
         Remove a repository based on relative path from base directory.
 
@@ -712,9 +713,9 @@ class ProcessingService:
         git_config = await self.git_label_repository.find_by_user_and_hosting(
             user_id, git_token, git_provider
         )
-        # TODO : check if needed
-        # if not git_config:
-        #     raise Exception(f"No {git_provider} configuration found for user")
+        
+        if not git_config:
+           raise DevDoxContextException(user_message=f"No {git_provider} configuration found for user")
 
         # Decrypt the stored token
         decrypted_token = self.encryption_service.decrypt_for_user(

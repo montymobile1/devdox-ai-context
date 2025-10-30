@@ -582,38 +582,6 @@ class SupabaseQueue:
             logger.error(f"Failed to get queue stats: {str(e)}")
             return {}
 
-    # async def cleanup_completed_jobs(
-    #     self, queue_name: str = None
-    # ) -> int:
-    #     """
-    #     Clean up archived jobs older than specified days
-    #     Note: PGMQueue handles message lifecycle differently than traditional queues
-    #
-    #     Args:
-    #         queue_name: Queue to clean up (uses table_name if None)
-    #         older_than_days: Remove jobs older than this many days
-    #
-    #     Returns:
-    #         Number of jobs cleaned up
-    #     """
-    #     try:
-    #         await self._ensure_initialized()
-    #
-    #         effective_queue_name = queue_name or self.table_name
-    #         #metrics = await self.queue.metrics(effective_queue_name)
-    #         # PGMQueue doesn't have a direct cleanup method for old messages
-    #         # This would typically be handled by database maintenance or custom queries
-    #         # For now, we'll return 0 and log that cleanup is not implemented
-    #
-    #         logger.info(
-    #             f"Cleanup for queue {effective_queue_name} - PGMQueue handles message lifecycle automatically"
-    #         )
-    #         return 0
-    #
-    #     except Exception as e:
-    #         logger.error(f"Failed to cleanup jobs: {str(e)}")
-    #         return -1
-
     async def close(self):
         """Close the queue connection"""
         if self._initialized and self.queue:
