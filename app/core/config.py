@@ -1,3 +1,4 @@
+from models_src import MongoConfig
 from pydantic import model_validator
 from pathlib import Path
 
@@ -240,6 +241,8 @@ class Settings(BaseSettings):
     )
     
     mail: MailSettings = Field(default_factory=MailSettings)
+    
+    MONGO: MongoConfig = Field(default_factory=MongoConfig)
     
     CORS_ORIGINS: List[str] = ["http://localhost:8002"]
     
