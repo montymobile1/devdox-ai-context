@@ -1,17 +1,20 @@
 import pytest
 import asyncio
-import uuid
 import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime
-from tortoise.contrib.test import finalizer, initializer
 from cryptography.fernet import Fernet
 
 from app.core.container import Container
-from app.core.config import TORTOISE_ORM
 from utils import TestDataFactory, MockFactory
+
+@pytest.fixture(autouse=True)
+def _disable_mongo(monkeypatch):
+    # Make settings.MONGO falsy so lifespan() skips Mongo init in tests
+    import app.main as app_main
+    monkeypatch.setattr(app_main.settings, "MONGO", None, raising=False)
 
 
 # Environment setup for testing
