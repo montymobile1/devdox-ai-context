@@ -27,19 +27,14 @@ import logging
 from enum import Enum
 from typing import NamedTuple, Optional
 import asyncio
-from models_src.dto.queue_job_claim_registry import (
-    QueueProcessingRegistryRequestDTO,
-    QueueProcessingRegistryResponseDTO,
-)
-from models_src.models.queue_job_claim_registry import (
-    QRegistryStat,
-    queue_processing_registry_one_claim_unique,
-)
-from models_src.repositories.queue_job_claim_registry import (
-    TortoiseQueueProcessingRegistryStore,
-)
-from tortoise.exceptions import IntegrityError, OperationalError
 
+from models_src import (
+    get_active_qpr_store,
+    JobAlreadyClaimed,
+    QueueProcessingRegistryResponseDTO, QueueProcessingRegistryRequestDTO,
+    QRegistryStat,
+)
+from pymongo.errors import OperationFailure
 
 class JobLevels(str, Enum):
     """
@@ -93,7 +88,7 @@ class JobTracker:
         """
         self.__tracked_claim: QueueProcessingRegistryResponseDTO = tracked_claim
         self.__queue_processing_registry_store = (
-            queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
+            queue_processing_registry_store or get_active_qpr_store()
         )
         self.__worker_id = worker_id
         self.__queue_name = queue_name
@@ -201,7 +196,7 @@ class JobTrackerManager:
 
     def __init__(self, queue_processing_registry_store=None):
         self.__queue_processing_registry_store = (
-            queue_processing_registry_store or TortoiseQueueProcessingRegistryStore()
+            queue_processing_registry_store or get_active_qpr_store()
         )
 
     async def try_claim(
@@ -272,17 +267,14 @@ class JobTrackerManager:
                 ),
             )
 
-        except IntegrityError as e:
+        except JobAlreadyClaimed:
             # Likely a race condition — someone else claimed first
-            if "queue_processing_registry_one_claim_unique" in str(e):
-                logging.warning(
-                    f"Worker {worker_id} failed to claim {message_id} — already claimed"
-                )
-                return ClaimResult(False, None)
-            logging.exception(f"Integrity error while claiming job {message_id}")
-            raise
-
-        except (asyncio.TimeoutError, OperationalError) as e:
+            logging.warning(
+                f"Worker {worker_id} failed to claim {message_id} — already claimed"
+            )
+            return ClaimResult(False, None)
+        
+        except (asyncio.TimeoutError, OperationFailure) as e:
             logging.error(
                 f"Database connection timeout while claiming job {message_id}: {e}"
             )
@@ -312,7 +304,7 @@ class JobTrackerManager:
                     f"[Attempt {attempt}/{max_retries}] Timeout while saving claim for {dto.message_id}"
                 )
 
-            except OperationalError as e:
+            except OperationFailure as e:
 
                 logging.warning(
                     f"[Attempt {attempt}/{max_retries}] DB operation failed (possibly transient): {e}"

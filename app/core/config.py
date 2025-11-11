@@ -242,7 +242,7 @@ class Settings(BaseSettings):
     
     mail: MailSettings = Field(default_factory=MailSettings)
     
-    MONGO: MongoConfig = Field(default_factory=MongoConfig)
+    MONGO: Optional[MongoConfig] = Field(default_factory=MongoConfig)
     
     CORS_ORIGINS: List[str] = ["http://localhost:8002"]
     
@@ -258,6 +258,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
+        env_nested_delimiter="__",
     )
 
 

@@ -272,7 +272,9 @@ class TestIntegration:
                 patch("app.main.settings") as mock_settings:
             mock_settings.VERSION = "test"
             mock_settings.CORS_ORIGINS = ["*"]
-
+            mock_settings.MONGO = None
+            
+            
             mock_service = MagicMock()
             mock_service.initialize = MagicMock()
             mock_service.start_workers = MagicMock()

@@ -2,13 +2,11 @@ import pytest
 import uuid
 import datetime
 
-from models_src.test_doubles.repositories.queue_job_claim_registry import (
-    FakeQueueProcessingRegistryStore,
+from models_src import (
+    FakeQueueProcessingRegistryStore, QueueProcessingRegistryResponseDTO, QRegistryStat,
 )
 
 from app.handlers.job_tracker import JobTracker, JobTrackerManager, JobLevels
-from models_src.dto.queue_job_claim_registry import QueueProcessingRegistryResponseDTO
-from models_src.models.queue_job_claim_registry import QRegistryStat
 
 
 def make_dto(**overrides):

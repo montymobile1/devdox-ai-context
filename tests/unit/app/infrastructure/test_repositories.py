@@ -4,15 +4,15 @@ import uuid
 
 import pytest
 from _pytest.logging import LogCaptureFixture
-from models_src.dto.api_key import APIKeyResponseDTO
-from models_src.dto.code_chunks import CodeChunksRequestDTO, CodeChunksResponseDTO
-from models_src.dto.repo import RepoResponseDTO
-from models_src.test_doubles.repositories.code_chunks import (
-    EMBED_DIM,
+
+from models_src import (
+	EMBED_DIM,
+	APIKeyResponseDTO,
+	RepoResponseDTO,
+	CodeChunksRequestDTO,
+	CodeChunksResponseDTO,
     FakeCodeChunksStore,
     StubCodeChunksStore,
-)
-from models_src.test_doubles.repositories.git_label import (
     make_fake_git_label,
     StubGitLabelStore,
 )
@@ -22,11 +22,6 @@ from app.core.exceptions.local_exceptions import (
     DatabaseError,
     RepoNotFoundError,
 )
-from models_src.test_doubles.repositories.api_key import (
-    FakeApiKeyStore,
-    StubApiKeyStore,
-)
-from models_src.test_doubles.repositories.repo import FakeRepoStore, StubRepoStore
 
 from app.core.exceptions import exception_constants
 
@@ -38,8 +33,13 @@ from app.infrastructure.database.repositories import (
     RepoRepositoryHelper,
     UserRepositoryHelper,
 )
-from models_src.dto.user import UserResponseDTO
-from models_src.test_doubles.repositories.user import (
+
+from models_src import (
+    FakeApiKeyStore,
+    StubApiKeyStore,
+    FakeRepoStore,
+    StubRepoStore,
+    UserResponseDTO,
     FakeUserStore,
     make_fake_user,
     StubUserStore,
