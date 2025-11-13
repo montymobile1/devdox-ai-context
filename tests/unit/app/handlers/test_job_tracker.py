@@ -3,8 +3,9 @@ import uuid
 import datetime
 
 from models_src import (
-    FakeQueueProcessingRegistryStore, QueueProcessingRegistryResponseDTO, QRegistryStat,
+    FakeQueueProcessingRegistryStore, JobAlreadyClaimed, QueueProcessingRegistryResponseDTO, QRegistryStat,
 )
+from pymongo.errors import OperationFailure
 
 from app.handlers.job_tracker import JobTracker, JobTrackerManager, JobLevels
 
@@ -132,12 +133,11 @@ class TestJobTrackerManager:
             assert result.tracker is None
 
     async def test_claim_fails_on_integrity_error(self):
-        from tortoise.exceptions import IntegrityError
 
         store = FakeQueueProcessingRegistryStore()
 
         store.set_exception(
-            store.save, IntegrityError("queue_processing_registry_message_id_idx")
+            store.save, OperationFailure("queue_processing_registry_message_id_idx")
         )
 
         manager = JobTrackerManager(queue_processing_registry_store=store)
@@ -153,5 +153,19 @@ class TestJobTrackerManager:
         manager = JobTrackerManager(queue_processing_registry_store=store)
 
         result = await manager.try_claim("worker-1", "msg-x", "embed-jobs")
+        assert result.qualifies_for_tracking is False
+        assert result.tracker is None
+    
+    async def test_already_claimed(self):
+
+        store = FakeQueueProcessingRegistryStore()
+
+        store.set_exception(
+            store.save, JobAlreadyClaimed()
+        )
+
+        manager = JobTrackerManager(queue_processing_registry_store=store)
+
+        result = await manager.try_claim("worker-1", "duplicate-id", "embed-jobs")
         assert result.qualifies_for_tracking is False
         assert result.tracker is None
