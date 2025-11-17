@@ -5,18 +5,6 @@ import uuid
 import pytest
 from _pytest.logging import LogCaptureFixture
 
-from models_src import (
-	EMBED_DIM,
-	APIKeyResponseDTO,
-	RepoResponseDTO,
-	CodeChunksRequestDTO,
-	CodeChunksResponseDTO,
-    FakeCodeChunksStore,
-    StubCodeChunksStore,
-    make_fake_git_label,
-    StubGitLabelStore,
-)
-
 from app.core.exceptions.local_exceptions import (
     ContextNotFoundError,
     DatabaseError,
@@ -35,59 +23,74 @@ from app.infrastructure.database.repositories import (
 )
 
 from models_src import (
-    FakeApiKeyStore,
-    StubApiKeyStore,
-    FakeRepoStore,
-    StubRepoStore,
-    UserResponseDTO,
-    FakeUserStore,
-    make_fake_user,
-    StubUserStore,
+    ApiKeyStore, CodeChunksStore, EMBED_DIM,
+    APIKeyResponseDTO,
+    GenericFakeStore, GenericStubStore, GitLabelStore, InMemoryApiKeyBackend, InMemoryCodeChunksBackend,
+    InMemoryRepoBackend, InMemoryUserBackend, RepoResponseDTO,
+    CodeChunksRequestDTO,
+    CodeChunksResponseDTO,
+    RepoStore, UserResponseDTO, UserStore,
+    make_fake_git_label, make_fake_user
 )
 
 from app.core.config import GitHosting
 
-
 @pytest.mark.asyncio
 class TestUserRepositoryHelper:
-
+    
+    InMemoUser = InMemoryUserBackend
+    FakeUserStore = UserStore
+    
     async def test_find_by_user_id_returns_value(self) -> None:
-
-        user_repository = FakeUserStore()
-
+        
+        # ARRANGE
+        in_memo = self.InMemoUser()
+        
         user_id_2 = uuid.uuid4()
-
-        user_repository.set_fake_data(
+        
+        in_memo.set_fake_data(
             [
                 UserResponseDTO(user_id=str(uuid.uuid4())),
                 UserResponseDTO(user_id=str(user_id_2)),
                 UserResponseDTO(user_id=str(uuid.uuid4())),
             ]
         )
+        
+        user_repository = GenericFakeStore(
+            base_store=self.FakeUserStore(storage_backend=in_memo)
+        )
 
+        # ACT
         helper = UserRepositoryHelper(repo=user_repository)
-
         returned_value = await helper.find_by_user_id(user_id=str(user_id_2))
-
+        
+        # ASSERT
         assert returned_value
 
     async def test_find_by_user_id_returns_nothing(self) -> None:
         """
         Tests method where it cant find a valid value
         """
-        user_repository = FakeUserStore()
-
-        user_repository.set_fake_data(
+        # ARRANGE
+        in_memo_user = self.InMemoUser()
+        
+        in_memo_user.set_fake_data(
             [
                 UserResponseDTO(user_id=str(uuid.uuid4())),
                 UserResponseDTO(user_id=str(uuid.uuid4())),
             ]
         )
+        
+        user_repository = GenericFakeStore(
+            base_store=self.FakeUserStore(storage_backend=in_memo_user)
+        )
 
+        
+        # ACT
         helper = UserRepositoryHelper(repo=user_repository)
-
         returned_value = await helper.find_by_user_id(user_id=str(uuid.uuid4()))
-
+        
+        # ASSERT
         assert not returned_value
 
     async def test_find_by_user_id_returns_exception(
@@ -96,19 +99,25 @@ class TestUserRepositoryHelper:
         """
         Tests method where it returns an exception
         """
-        user_repository = FakeUserStore()
-
-        user_repository.set_exception(
-            user_repository.find_by_user_id, Exception("Exception Occurred :)")
+        
+        # ARRANGE
+        in_mem = self.InMemoUser()
+        
+        user_repository = GenericFakeStore(
+            base_store=self.FakeUserStore(storage_backend=in_mem)
         )
 
+        user_repository.set_exception(
+            self.FakeUserStore.find_by_user_id, Exception("Exception Occurred :)")
+        )
+        
+        # ACT
         helper = UserRepositoryHelper(repo=user_repository)
-
         user_id = uuid.uuid4()
-
         with caplog.at_level(logging.INFO):
             returned_value = await helper.find_by_user_id(user_id=str(user_id))
-
+        
+        # ASSERT
         assert not returned_value
         assert any(
             r.message
@@ -120,9 +129,9 @@ class TestUserRepositoryHelper:
 
     @pytest.mark.parametrize("db_output", [-1, 0], ids=["invalid inputs", "no data"])
     async def test_update_token_usage_updates_nothing(self, db_output) -> None:
-        user_repository = StubUserStore()
+        user_repository = GenericStubStore()
 
-        user_repository.set_output(user_repository.increment_token_usage, db_output)
+        user_repository.set_output(self.FakeUserStore.increment_token_usage, db_output)
 
         helper = UserRepositoryHelper(repo=user_repository)
 
@@ -137,10 +146,10 @@ class TestUserRepositoryHelper:
         )
 
     async def test_create_user_has_exception(self) -> None:
-        user_repository = StubUserStore()
+        user_repository = GenericStubStore()
 
         user_repository.set_exception(
-            user_repository.increment_token_usage, Exception("EXCEPTION OCCURRED")
+            self.FakeUserStore.increment_token_usage, Exception("EXCEPTION OCCURRED")
         )
 
         helper = UserRepositoryHelper(repo=user_repository)
@@ -153,17 +162,17 @@ class TestUserRepositoryHelper:
         )
 
     async def test_find_by_user_id_ok(self):
-        stub = StubUserStore()
+        stub = GenericStubStore()
         user = make_fake_user(user_id="u-1")
-        stub.set_output(StubUserStore.find_by_user_id, user)
+        stub.set_output(self.FakeUserStore.find_by_user_id, user)
         helper = UserRepositoryHelper(repo=stub)
 
         got = await helper.find_by_user_id("u-1")
         assert got is user
 
     async def test_find_by_user_id_logs_and_returns_none_on_exception(self, caplog):
-        stub = StubUserStore()
-        stub.set_exception(StubUserStore.find_by_user_id, RuntimeError("boom"))
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeUserStore.find_by_user_id, RuntimeError("boom"))
         helper = UserRepositoryHelper(repo=stub)
 
         with caplog.at_level(logging.ERROR):
@@ -174,8 +183,8 @@ class TestUserRepositoryHelper:
         )
 
     async def test_update_token_usage_ok(self, caplog):
-        stub = StubUserStore()
-        stub.set_output(StubUserStore.increment_token_usage, 1)
+        stub = GenericStubStore()
+        stub.set_output(self.FakeUserStore.increment_token_usage, 1)
         helper = UserRepositoryHelper(repo=stub)
 
         with caplog.at_level(logging.INFO):
@@ -183,16 +192,16 @@ class TestUserRepositoryHelper:
         assert "Updated token usage" in caplog.text
 
     async def test_update_token_usage_less_than_or_equal_0_raises_database_error(self):
-        stub = StubUserStore()
-        stub.set_output(StubUserStore.increment_token_usage, 0)
+        stub = GenericStubStore()
+        stub.set_output(self.FakeUserStore.increment_token_usage, 0)
         helper = UserRepositoryHelper(repo=stub)
 
         with pytest.raises(DatabaseError):
             await helper.update_token_usage("u-1", 10)
 
     async def test_update_token_usage_exception_wrapped(self):
-        stub = StubUserStore()
-        stub.set_exception(StubUserStore.increment_token_usage, RuntimeError("db down"))
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeUserStore.increment_token_usage, RuntimeError("db down"))
         helper = UserRepositoryHelper(repo=stub)
 
         with pytest.raises(DatabaseError) as ei:
@@ -202,9 +211,9 @@ class TestUserRepositoryHelper:
         )
 
     async def test_create_user_ok(self, caplog):
-        stub = StubUserStore()
+        stub = GenericStubStore()
         returned = make_fake_user(user_id="u-2", email="x@y.com", encryption_salt="s")
-        stub.set_output(StubUserStore.save, returned)
+        stub.set_output(self.FakeUserStore.save, returned)
         helper = UserRepositoryHelper(repo=stub)
 
         payload = {
@@ -223,8 +232,8 @@ class TestUserRepositoryHelper:
         assert "Created new user: u-2" in caplog.text
 
     async def test_create_user_exception_wrapped(self):
-        stub = StubUserStore()
-        stub.set_exception(StubUserStore.save, RuntimeError("write fail"))
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeUserStore.save, RuntimeError("write fail"))
         helper = UserRepositoryHelper(repo=stub)
 
         with pytest.raises(DatabaseError) as ei:
@@ -236,15 +245,22 @@ class TestUserRepositoryHelper:
 
 @pytest.mark.asyncio
 class TestAPIKeyRepositoryHelper:
-
+    
+    InMemo = InMemoryApiKeyBackend
+    FakeStore = ApiKeyStore
+    
     async def test_find_active_by_key_has_exception(
         self, caplog: LogCaptureFixture
     ) -> None:
-
-        repository = FakeApiKeyStore()
+        
+        in_memo = self.InMemo()
+        
+        repository = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=in_memo)
+        )
 
         repository.set_exception(
-            repository.find_by_active_api_key, Exception("EXCEPTION OCCURRED")
+            self.FakeStore.find_by_active_api_key, Exception("EXCEPTION OCCURRED")
         )
 
         helper = APIKeyRepositoryHelper(repo=repository)
@@ -260,10 +276,12 @@ class TestAPIKeyRepositoryHelper:
 
     async def test_update_last_used_has_exception(self) -> None:
 
-        repository = FakeApiKeyStore()
+        repository = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
 
         repository.set_exception(
-            repository.update_last_used_by_id, Exception("EXCEPTION OCCURRED")
+            self.FakeStore.update_last_used_by_id, Exception("EXCEPTION OCCURRED")
         )
 
         helper = APIKeyRepositoryHelper(repo=repository)
@@ -276,19 +294,19 @@ class TestAPIKeyRepositoryHelper:
         )
 
     async def test_find_active_by_key_ok(self):
-        stub = StubApiKeyStore()
+        stub = GenericStubStore()
         obj = APIKeyResponseDTO(
             id=uuid.uuid4(), user_id="u", api_key="k", is_active=True
         )
-        stub.set_output(StubApiKeyStore.find_by_active_api_key, obj)
+        stub.set_output(self.FakeStore.find_by_active_api_key, obj)
         helper = APIKeyRepositoryHelper(repo=stub)
 
         got = await helper.find_active_by_key("k")
         assert got is obj
 
     async def test_find_active_by_key_logs_and_returns_none_on_exception(self, caplog):
-        stub = StubApiKeyStore()
-        stub.set_exception(StubApiKeyStore.find_by_active_api_key, RuntimeError("x"))
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeStore.find_by_active_api_key, RuntimeError("x"))
         helper = APIKeyRepositoryHelper(repo=stub)
 
         with caplog.at_level(logging.ERROR):
@@ -297,14 +315,14 @@ class TestAPIKeyRepositoryHelper:
         assert exception_constants.ERROR_FINDING_API_KEY in caplog.text
 
     async def test_update_last_used_ok(self):
-        stub = StubApiKeyStore()
-        stub.set_output(StubApiKeyStore.update_last_used_by_id, 1)
+        stub = GenericStubStore()
+        stub.set_output(self.FakeStore.update_last_used_by_id, 1)
         helper = APIKeyRepositoryHelper(repo=stub)
         await helper.update_last_used("some-id")  # no exception
 
     async def test_update_last_used_wraps_exception(self):
-        stub = StubApiKeyStore()
-        stub.set_exception(StubApiKeyStore.update_last_used_by_id, RuntimeError("fail"))
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeStore.update_last_used_by_id, RuntimeError("fail"))
         helper = APIKeyRepositoryHelper(repo=stub)
         with pytest.raises(DatabaseError) as ei:
             await helper.update_last_used("x")
@@ -315,18 +333,23 @@ class TestAPIKeyRepositoryHelper:
 
 @pytest.mark.asyncio
 class TestRepoRepositoryHelper:
-
+    
+    InMemo = InMemoryRepoBackend
+    FakeStore = RepoStore
+    
     async def test_find_by_repo_id_has_exception(
         self, caplog: LogCaptureFixture
     ) -> None:
 
-        repository = FakeRepoStore()
+        repository = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
 
         repository.set_exception(
-            repository.find_by_repo_id, Exception("EXCEPTION OCCURRED")
+            self.FakeStore.find_by_repo_id, Exception("EXCEPTION OCCURRED")
         )
         repository.set_exception(
-            repository.find_by_repo_id_user_id, Exception("EXCEPTION OCCURRED")
+            self.FakeStore.find_by_repo_id_user_id, Exception("EXCEPTION OCCURRED")
         )
 
         helper = RepoRepositoryHelper(repo=repository)
@@ -349,10 +372,12 @@ class TestRepoRepositoryHelper:
         self, caplog: LogCaptureFixture
     ) -> None:
 
-        repository = FakeRepoStore()
+        repository = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
 
         repository.set_exception(
-            repository.find_by_user_id_and_html_url, Exception("EXCEPTION OCCURRED")
+            self.FakeStore.find_by_user_id_and_html_url, Exception("EXCEPTION OCCURRED")
         )
 
         helper = RepoRepositoryHelper(repo=repository)
@@ -375,16 +400,16 @@ class TestRepoRepositoryHelper:
         )
 
     async def test_find_by_repo_id_ok(self):
-        stub = StubRepoStore()
+        stub = GenericStubStore()
         repo = RepoResponseDTO(id=uuid.uuid4(), repo_id="r-1", user_id="u")
-        stub.set_output(StubRepoStore.find_by_repo_id, repo)
+        stub.set_output(self.FakeStore.find_by_repo_id, repo)
         helper = RepoRepositoryHelper(repo=stub)
         got = await helper.find_by_repo_id("r-1")
         assert got is repo
 
     async def test_find_by_repo_id_logs_none_on_exception(self, caplog):
-        stub = StubRepoStore()
-        stub.set_exception(StubRepoStore.find_by_repo_id, RuntimeError())
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeStore.find_by_repo_id, RuntimeError())
         helper = RepoRepositoryHelper(repo=stub)
         with caplog.at_level(logging.ERROR):
             got = await helper.find_by_repo_id("r-404")
@@ -395,13 +420,13 @@ class TestRepoRepositoryHelper:
         )
 
     async def test_find_repo_by_id_ok_and_logs_on_exception(self, caplog):
-        stub = StubRepoStore()
+        stub = GenericStubStore()
         repo = RepoResponseDTO(id=uuid.uuid4(), repo_id="r2", user_id="u")
-        stub.set_output(StubRepoStore.find_by_id, repo)
+        stub.set_output(self.FakeStore.find_by_id, repo)
         helper = RepoRepositoryHelper(repo=stub)
         assert await helper.find_repo_by_id("abc") is repo
 
-        stub.set_exception(StubRepoStore.find_by_id, RuntimeError())
+        stub.set_exception(self.FakeStore.find_by_id, RuntimeError())
         with caplog.at_level(logging.ERROR):
             assert await helper.find_repo_by_id("nope") is None
         assert (
@@ -409,15 +434,15 @@ class TestRepoRepositoryHelper:
         )
 
     async def test_find_by_user_and_url_ok_and_logs_on_exception(self, caplog):
-        stub = StubRepoStore()
+        stub = GenericStubStore()
         repo = RepoResponseDTO(
             id=uuid.uuid4(), repo_id="r3", user_id="u", html_url="https://x"
         )
-        stub.set_output(StubRepoStore.find_by_user_id_and_html_url, repo)
+        stub.set_output(self.FakeStore.find_by_user_id_and_html_url, repo)
         helper = RepoRepositoryHelper(repo=stub)
         assert await helper.find_by_user_and_url("u", "https://x") is repo
 
-        stub.set_exception(StubRepoStore.find_by_user_id_and_html_url, RuntimeError())
+        stub.set_exception(self.FakeStore.find_by_user_id_and_html_url, RuntimeError())
         with caplog.at_level(logging.ERROR):
             assert await helper.find_by_user_and_url("u", "no") is None
         assert exception_constants.ERROR_FINDING_REPO.split("{")[0] in caplog.text
@@ -425,17 +450,21 @@ class TestRepoRepositoryHelper:
 
 @pytest.mark.asyncio
 class TestGitLabelRepositoryHelper:
-
+    
+    InMemo = InMemoryRepoBackend
+    FakeStore = GitLabelStore
+    
+    
     async def test_find_by_user_and_hosting_has_exception(
         self, caplog: LogCaptureFixture
     ) -> None:
         """
         Tests method where it returns an exception
         """
-        repository = StubGitLabelStore()
+        repository = GenericStubStore()
 
         repository.set_exception(
-            repository.find_by_id_and_user_id_and_git_hosting,
+            self.FakeStore.find_by_id_and_user_id_and_git_hosting,
             Exception("Exception Occurred :)"),
         )
 
@@ -453,17 +482,17 @@ class TestGitLabelRepositoryHelper:
         )
 
     async def test_find_by_user_and_hosting_ok(self):
-        stub = StubGitLabelStore()
+        stub = GenericStubStore()
         label = make_fake_git_label(git_hosting="github")
-        stub.set_output(StubGitLabelStore.find_by_id_and_user_id_and_git_hosting, label)
+        stub.set_output(self.FakeStore.find_by_id_and_user_id_and_git_hosting, label)
         helper = GitLabelRepositoryHelper(repo=stub)
         got = await helper.find_by_user_and_hosting("u", str(label.id), "github")
         assert got is label
 
     async def test_find_by_user_and_hosting_logs_and_returns_none(self, caplog):
-        stub = StubGitLabelStore()
+        stub = GenericStubStore()
         stub.set_exception(
-            StubGitLabelStore.find_by_id_and_user_id_and_git_hosting, RuntimeError()
+            self.FakeStore.find_by_id_and_user_id_and_git_hosting, RuntimeError()
         )
         helper = GitLabelRepositoryHelper(repo=stub)
         with caplog.at_level(logging.ERROR):
@@ -474,15 +503,18 @@ class TestGitLabelRepositoryHelper:
 
 @pytest.mark.asyncio
 class TestContextRepositoryHelper:
-
+    
+    InMemo = InMemoryRepoBackend
+    FakeStore = RepoStore
+    
     async def test_create_context_has_exception(self):
         """
         Tests method where it returns an exception
         """
-        repository = StubRepoStore()
+        repository = GenericStubStore()
 
         repository.set_exception(
-            repository.save_context, Exception("Exception Occurred :)")
+            self.FakeStore.save_context, Exception("Exception Occurred :)")
         )
 
         helper = ContextRepositoryHelper(repo=repository)
@@ -501,10 +533,10 @@ class TestContextRepositoryHelper:
     async def test_update_status_has_exception_1(self, db_output) -> None:
         """Returns RepoNotFoundError"""
 
-        user_repository = StubRepoStore()
-
+        user_repository = GenericStubStore()
+        
         user_repository.set_output(
-            user_repository.update_analysis_metadata_by_id, db_output
+            self.FakeStore.update_analysis_metadata_by_id, db_output
         )
 
         helper = ContextRepositoryHelper(repo=user_repository)
@@ -524,10 +556,10 @@ class TestContextRepositoryHelper:
     async def test_update_status_has_exception_2(self) -> None:
         """Returns RepoNotFoundError"""
 
-        user_repository = StubRepoStore()
+        user_repository = GenericStubStore()
 
         user_repository.set_exception(
-            user_repository.update_analysis_metadata_by_id,
+            self.FakeStore.update_analysis_metadata_by_id,
             Exception("EXCEPTION OCCURRED"),
         )
 
@@ -554,10 +586,10 @@ class TestContextRepositoryHelper:
     ) -> None:
         """Returns RepoNotFoundError"""
 
-        user_repository = StubRepoStore()
+        user_repository = GenericStubStore()
 
         user_repository.set_output(
-            user_repository.update_repo_system_reference_by_id, db_output
+            self.FakeStore.update_repo_system_reference_by_id, db_output
         )
 
         helper = ContextRepositoryHelper(repo=user_repository)
@@ -573,10 +605,10 @@ class TestContextRepositoryHelper:
     async def test_update_repo_repo_system_reference_has_exception_2(self) -> None:
         """Returns RepoNotFoundError"""
 
-        user_repository = StubRepoStore()
+        user_repository = GenericStubStore()
 
         user_repository.set_exception(
-            user_repository.update_repo_system_reference_by_id,
+            self.FakeStore.update_repo_system_reference_by_id,
             Exception("EXCEPTION OCCURRED"),
         )
 
@@ -595,7 +627,10 @@ class TestContextRepositoryHelper:
 
     async def test_create_context_ok(self, caplog):
         # Use FakeRepoStore for stateful behavior
-        fake = FakeRepoStore()
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
+        
         helper = ContextRepositoryHelper(repo=fake)
         with caplog.at_level(logging.INFO):
             ctx = await helper.create_context("repo1", "u", {"any": "cfg"})
@@ -604,8 +639,8 @@ class TestContextRepositoryHelper:
         assert "Created context for repo repo1" in caplog.text
 
     async def test_create_context_wraps_exception(self):
-        stub = StubRepoStore()
-        stub.set_exception(StubRepoStore.save_context, RuntimeError("x"))
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeStore.save_context, RuntimeError("x"))
         helper = ContextRepositoryHelper(repo=stub)
         with pytest.raises(DatabaseError) as ei:
             await helper.create_context("r", "u", {})
@@ -614,11 +649,11 @@ class TestContextRepositoryHelper:
         )
 
     async def test_update_status_ok_and_not_found_and_wrapped(self, caplog):
-        stub = StubRepoStore()
+        stub = GenericStubStore()
         helper = ContextRepositoryHelper(repo=stub)
 
         # OK (repo.update returns >0)
-        stub.set_output(StubRepoStore.update_analysis_metadata_by_id, 1)
+        stub.set_output(self.FakeStore.update_analysis_metadata_by_id, 1)
         with caplog.at_level(logging.INFO):
             await helper.update_status(
                 "ctx-1", "done", datetime.datetime.now(datetime.timezone.utc), 1, 2, 3
@@ -626,7 +661,7 @@ class TestContextRepositoryHelper:
         assert "Updated context ctx-1 status to done" in caplog.text
 
         # Not found (<=0) -> ContextNotFoundError
-        stub.set_output(StubRepoStore.update_analysis_metadata_by_id, 0)
+        stub.set_output(self.FakeStore.update_analysis_metadata_by_id, 0)
         with pytest.raises(ContextNotFoundError):
             await helper.update_status(
                 "ctx-404", "x", datetime.datetime.now(datetime.timezone.utc), 0, 0, 0
@@ -634,7 +669,7 @@ class TestContextRepositoryHelper:
 
         # Wrapped generic exception -> DatabaseError
         stub.set_exception(
-            StubRepoStore.update_analysis_metadata_by_id, RuntimeError("db")
+            self.FakeStore.update_analysis_metadata_by_id, RuntimeError("db")
         )
         with pytest.raises(DatabaseError) as ei:
             await helper.update_status(
@@ -645,23 +680,23 @@ class TestContextRepositoryHelper:
         )
 
     async def test_update_repo_system_reference_ok_and_errors(self, caplog):
-        stub = StubRepoStore()
+        stub = GenericStubStore()
         helper = ContextRepositoryHelper(repo=stub)
 
         # OK
-        stub.set_output(StubRepoStore.update_repo_system_reference_by_id, 1)
+        stub.set_output(self.FakeStore.update_repo_system_reference_by_id, 1)
         with caplog.at_level(logging.INFO):
             await helper.update_repo_system_reference("ctx-1", "ref-123")
         assert "Updated context ctx-1" in caplog.text
 
         # Not found
-        stub.set_output(StubRepoStore.update_repo_system_reference_by_id, 0)
+        stub.set_output(self.FakeStore.update_repo_system_reference_by_id, 0)
         with pytest.raises(ContextNotFoundError):
             await helper.update_repo_system_reference("ctx-404", "ref")
 
         # Wrapped
         stub.set_exception(
-            StubRepoStore.update_repo_system_reference_by_id, RuntimeError("x")
+            self.FakeStore.update_repo_system_reference_by_id, RuntimeError("x")
         )
         with pytest.raises(DatabaseError) as ei:
             await helper.update_repo_system_reference("ctx-e", "ref")
@@ -672,8 +707,15 @@ class TestContextRepositoryHelper:
 
 @pytest.mark.asyncio
 class TestCodeChunksRepositoryHelper:
+    
+    InMemo = InMemoryCodeChunksBackend
+    FakeStore = CodeChunksStore
+    
     async def test_store_embeddings_ok_with_fake(self, caplog):
-        fake = FakeCodeChunksStore()
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
+        
         helper = CodeChunksRepositoryHelper(repo=fake)
 
         vec = [0.0] * EMBED_DIM
@@ -697,8 +739,8 @@ class TestCodeChunksRepositoryHelper:
         assert "Stored 1 embeddings for repo repo1" in caplog.text
 
     async def test_store_embeddings_wraps_exception(self):
-        stub = StubCodeChunksStore()
-        stub.set_exception(StubCodeChunksStore.save, RuntimeError("write fail"))
+        stub = GenericStubStore()
+        stub.set_exception(self.FakeStore.save, RuntimeError("write fail"))
         helper = CodeChunksRepositoryHelper(repo=stub)
 
         with pytest.raises(DatabaseError) as ei:
@@ -708,7 +750,11 @@ class TestCodeChunksRepositoryHelper:
         )
 
     async def test_find_by_repo_ok_and_logs_empty_on_exception(self, caplog):
-        fake = FakeCodeChunksStore()
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
+
         helper = CodeChunksRepositoryHelper(repo=fake)
 
         # Add two rows for repo A and one for B
@@ -756,9 +802,9 @@ class TestCodeChunksRepositoryHelper:
         assert len(rows) == 1
 
         # Exception path returns []
-        stub = StubCodeChunksStore()
+        stub = GenericStubStore()
         stub.set_exception(
-            StubCodeChunksStore.find_all_by_repo_id_with_limit, RuntimeError("x")
+            self.FakeStore.find_all_by_repo_id_with_limit, RuntimeError("x")
         )
         helper2 = CodeChunksRepositoryHelper(repo=stub)
         with caplog.at_level(logging.ERROR):

@@ -3,7 +3,7 @@ import uuid
 import datetime
 
 from models_src import (
-    FakeQueueProcessingRegistryStore, JobAlreadyClaimed, QueueProcessingRegistryResponseDTO, QRegistryStat,
+    GenericFakeStore, InMemoryQueueProcessingRegistryBackend, JobAlreadyClaimed, QueueProcessingRegistryResponseDTO, QRegistryStat, QueueProcessingRegistryStore,
 )
 from pymongo.errors import OperationFailure
 
@@ -28,70 +28,104 @@ def make_dto(**overrides):
 
 @pytest.mark.asyncio
 class TestJobTracker:
-
+    
+    InMemo = InMemoryQueueProcessingRegistryBackend
+    FakeStore = QueueProcessingRegistryStore
+    
     async def test_start_marks_job_in_progress(self):
-        store = FakeQueueProcessingRegistryStore()
+        
+        in_mem = self.InMemo()
         dto = make_dto()
-        store.set_fake_data([dto])
-
+        in_mem.set_fake_data([dto])
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=in_mem)
+        )
+        
         tracker = JobTracker(
-            "worker-1", "embed-jobs", dto, queue_processing_registry_store=store
+            "worker-1", "embed-jobs", dto, queue_processing_registry_store=fake
         )
         await tracker.start()
 
-        assert store.data_store[dto.id].status == QRegistryStat.IN_PROGRESS
+        assert in_mem.data_store[dto.id].status == QRegistryStat.IN_PROGRESS
 
     async def test_fail_marks_job_failed_and_updates_msg_id(self):
-        store = FakeQueueProcessingRegistryStore()
+        
+        in_mem = self.InMemo()
         dto = make_dto()
-        store.set_fake_data([dto])
-
+        in_mem.set_fake_data([dto])
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=in_mem)
+        )
+        
         tracker = JobTracker(
-            "worker-1", "embed-jobs", dto, queue_processing_registry_store=store
+            "worker-1", "embed-jobs", dto, queue_processing_registry_store=fake
         )
         await tracker.fail("new-msg-id")
 
-        updated = store.data_store[dto.id]
+        updated = in_mem.data_store[dto.id]
         assert updated.status == QRegistryStat.FAILED
         assert updated.message_id == "new-msg-id"
 
     async def test_retry_sets_status_and_msg_id(self):
-        store = FakeQueueProcessingRegistryStore()
+        
+        in_mem = self.InMemo()
         dto = make_dto()
-        store.set_fake_data([dto])
-
+        in_mem.set_fake_data([dto])
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=in_mem)
+        )
+        
         tracker = JobTracker(
-            "worker-1", "embed-jobs", dto, queue_processing_registry_store=store
+            "worker-1", "embed-jobs", dto, queue_processing_registry_store=fake
         )
         await tracker.retry("retry-id")
 
-        updated = store.data_store[dto.id]
+        updated = in_mem.data_store[dto.id]
         assert updated.status == QRegistryStat.RETRY
         assert updated.message_id == "retry-id"
 
     async def test_completed_sets_status_and_done_step(self):
-        store = FakeQueueProcessingRegistryStore()
+        
+        
+        in_mem = self.InMemo()
         dto = make_dto()
-        store.set_fake_data([dto])
-
+        in_mem.set_fake_data([dto])
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=in_mem)
+        )
+        
         tracker = JobTracker(
-            "worker-1", "embed-jobs", dto, queue_processing_registry_store=store
+            "worker-1", "embed-jobs", dto, queue_processing_registry_store=fake
         )
         await tracker.completed()
 
-        updated = store.data_store[dto.id]
+        updated = in_mem.data_store[dto.id]
         assert updated.status == QRegistryStat.COMPLETED
         assert updated.step == JobLevels.DONE.value
 
 
 @pytest.mark.asyncio
 class TestJobTrackerManager:
+    
+    
+    InMemo = InMemoryQueueProcessingRegistryBackend
+    FakeStore = QueueProcessingRegistryStore
 
     async def test_claim_succeeds_when_no_previous(self):
-        store = FakeQueueProcessingRegistryStore()
-        store.set_fake_data([])
+        
+        
+        in_mem = self.InMemo()
+        in_mem.set_fake_data([])
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=in_mem)
+        )
 
-        manager = JobTrackerManager(queue_processing_registry_store=store)
+        manager = JobTrackerManager(queue_processing_registry_store=fake)
 
         result = await manager.try_claim("worker-1", "msg-123", "embed-jobs")
 
@@ -100,11 +134,16 @@ class TestJobTrackerManager:
 
     async def test_claim_succeeds_when_previous_failed_or_retry(self):
         for status in [QRegistryStat.FAILED, QRegistryStat.RETRY]:
-            store = FakeQueueProcessingRegistryStore()
+            
+            in_mem = self.InMemo()
             previous = make_dto(status=status)
-            store.set_fake_data([previous])
+            in_mem.set_fake_data([previous])
+            
+            fake = GenericFakeStore(
+                base_store=self.FakeStore(storage_backend=in_mem)
+            )
 
-            manager = JobTrackerManager(queue_processing_registry_store=store)
+            manager = JobTrackerManager(queue_processing_registry_store=fake)
 
             result = await manager.try_claim(
                 "worker-1", previous.message_id, "embed-jobs"
@@ -119,11 +158,16 @@ class TestJobTrackerManager:
             QRegistryStat.IN_PROGRESS,
             QRegistryStat.COMPLETED,
         ]:
-            store = FakeQueueProcessingRegistryStore()
+            
+            in_mem = self.InMemo()
             previous = make_dto(status=status)
-            store.set_fake_data([previous])
+            in_mem.set_fake_data([previous])
+            
+            fake = GenericFakeStore(
+                base_store=self.FakeStore(storage_backend=in_mem)
+            )
 
-            manager = JobTrackerManager(queue_processing_registry_store=store)
+            manager = JobTrackerManager(queue_processing_registry_store=fake)
 
             result = await manager.try_claim(
                 "worker-1", previous.message_id, "embed-jobs"
@@ -133,38 +177,46 @@ class TestJobTrackerManager:
             assert result.tracker is None
 
     async def test_claim_fails_on_integrity_error(self):
-
-        store = FakeQueueProcessingRegistryStore()
-
-        store.set_exception(
-            store.save, OperationFailure("queue_processing_registry_message_id_idx")
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
         )
 
-        manager = JobTrackerManager(queue_processing_registry_store=store)
+        fake.set_exception(
+            self.FakeStore.save, OperationFailure("queue_processing_registry_message_id_idx")
+        )
+
+        manager = JobTrackerManager(queue_processing_registry_store=fake)
 
         result = await manager.try_claim("worker-1", "duplicate-id", "embed-jobs")
         assert result.qualifies_for_tracking is False
         assert result.tracker is None
 
     async def test_claim_raises_on_unknown_exception(self):
-        store = FakeQueueProcessingRegistryStore()
-        store.set_exception(store.save, ValueError("bad stuff"))
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
+        
+        fake.set_exception(self.FakeStore.save, ValueError("bad stuff"))
 
-        manager = JobTrackerManager(queue_processing_registry_store=store)
+        manager = JobTrackerManager(queue_processing_registry_store=fake)
 
         result = await manager.try_claim("worker-1", "msg-x", "embed-jobs")
         assert result.qualifies_for_tracking is False
         assert result.tracker is None
     
     async def test_already_claimed(self):
-
-        store = FakeQueueProcessingRegistryStore()
-
-        store.set_exception(
-            store.save, JobAlreadyClaimed()
+        
+        fake = GenericFakeStore(
+            base_store=self.FakeStore(storage_backend=self.InMemo())
+        )
+        
+        fake.set_exception(
+            self.FakeStore.save, JobAlreadyClaimed()
         )
 
-        manager = JobTrackerManager(queue_processing_registry_store=store)
+        manager = JobTrackerManager(queue_processing_registry_store=fake)
 
         result = await manager.try_claim("worker-1", "duplicate-id", "embed-jobs")
         assert result.qualifies_for_tracking is False
