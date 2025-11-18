@@ -10,7 +10,7 @@ import asyncio
 import signal
 from typing import List, Set
 
-from models_src import init_via_uri
+from models_src import MongoConfig, init_via_uri
 from tortoise import Tortoise
 import logging
 from fastapi import FastAPI
@@ -156,6 +156,34 @@ class WorkerService:
 # Global worker service
 worker_service = None
 
+async def init_mongo(mongo_settings:MongoConfig | None):
+    
+    if mongo_settings:
+        mongo_uri = mongo_settings.build_uri()
+        mongo_client, mongo_db = await init_via_uri(mongo_uri)
+        
+        # health check to fail fast
+        try:
+            await mongo_db.command("ping")
+        except Exception:
+            # clean up before re-raising so FastAPI doesn’t keep a half-open client
+            mongo_res = mongo_client.close()
+            if inspect.isawaitable(mongo_res):
+                await mongo_res
+            raise
+        
+        return mongo_client, mongo_db
+    return None, None
+
+
+async def shutdown_mongo(mongo_settings:MongoConfig | None, mongo_client):
+    if mongo_settings and mongo_client:
+        res = mongo_client.close()
+        if inspect.isawaitable(res):
+            await res
+        
+        logger.info("MongoDB connections closed")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -170,22 +198,9 @@ async def lifespan(app: FastAPI):
         if TORTOISE_ORM and not Tortoise._inited:
             await Tortoise.init(config=TORTOISE_ORM)
             logger.info("Database initialized")
-        
-        # INITIALIZE MONGODB
-        mongo_client = None
-        if settings.MONGO:
-            mongo_uri = settings.MONGO.build_uri()
-            mongo_client, mongo_db = await init_via_uri(mongo_uri)
             
-            # health check to fail fast
-            try:
-                await mongo_db.command("ping")
-            except Exception:
-                # clean up before re-raising so FastAPI doesn’t keep a half-open client
-                mongo_res = mongo_client.close()
-                if inspect.isawaitable(mongo_res):
-                    await mongo_res
-                raise
+        # INITIALIZE MONGODB
+        mongo_client, _ = await init_mongo(mongo_settings=settings.MONGO)
         
         # Initialize worker service
         worker_service = WorkerService()
@@ -212,13 +227,7 @@ async def lifespan(app: FastAPI):
         await Tortoise.close_connections()
         logger.info("Database connections closed")
     
-    if settings.MONGO and mongo_client:
-        res = mongo_client.close()
-        if inspect.isawaitable(res):
-            await res
-        
-        logger.info("MongoDB connections closed")
-
+    await shutdown_mongo(mongo_settings=settings.MONGO, mongo_client=mongo_client)
 
     logger.info("Application shutdown complete")
 
