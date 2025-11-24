@@ -10,7 +10,7 @@ import asyncio
 import signal
 from typing import List, Set
 
-from models_src import MongoConfig, init_via_uri
+from models_src import MongoConfig, build_uri, init_via_uri
 from tortoise import Tortoise
 import logging
 from fastapi import FastAPI
@@ -159,7 +159,7 @@ worker_service = None
 async def init_mongo(mongo_settings:MongoConfig | None):
     
     if mongo_settings:
-        mongo_uri = mongo_settings.build_uri()
+        mongo_uri = build_uri(mongo_conf=mongo_settings)
         mongo_client, mongo_db = await init_via_uri(mongo_uri)
         
         # health check to fail fast
