@@ -9,7 +9,7 @@ import re
 import toml
 import aiofiles
 
-from models_src import StatusTypes
+from models_src import StatusTypes, RepoRequestDTO, get_active_repo_store
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -17,20 +17,17 @@ from tenacity import (
     retry_if_exception_type,
 )
 
-from devdox_ai_git.repo_fetcher import RepoFetcher
 from git import Repo
 from together import Together, AsyncTogether
 from datetime import datetime, timezone
 from langchain_community.document_loaders import GitLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List, Dict, Any, Optional, Tuple
 from typing import List, Dict, Any, Optional, Tuple, Union
 from app.handlers.utils.git_managers import retrieve_git_fetcher_or_die
 from devdox_ai_git.repo_fetcher import RepoFetcher
 from devdox_ai_git.schema.repo import NormalizedGitRepo
-from models_src.repositories.repo import TortoiseRepoStore as RepoRepository
-from models_src.dto.repo import RepoRequestDTO
+
 from urllib.parse import urlparse
 from app.infrastructure.database.repositories import (
     ContextRepositoryHelper,
@@ -516,6 +513,9 @@ class ProcessingService:
             raise OSError(f"Failed to remove repository at '{repo_path}': {e}")
 
     async def prepare_repository(self, repo_name) -> Tuple[Path, str]:
+        """
+        This method deletes a repository file if it already exists
+        """
         repo_path = self.base_dir / repo_name
 
         if repo_path.exists():
@@ -979,7 +979,7 @@ class ProcessingService:
                                 author_email = repo_user.get("commit_email")
 
                             transformed_data: NormalizedGitRepo = fetcher_data_mapper.from_git(repo_data)
-                            repo_repository = RepoRepository()
+                            repo_repository = get_active_repo_store()
                             repo_check = await repo_repository.save(
                                 RepoRequestDTO(
                                     user_id=user.user_id,
