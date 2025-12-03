@@ -244,7 +244,6 @@ class JobTrackerManager:
                 status=QRegistryStat.PENDING,
                 claimed_by=worker_id,
                 claimed_at=now,
-                updated_at=now,
                 previous_message_id=(
                     previous_latest_message.id if previous_latest_message else None
                 ),
