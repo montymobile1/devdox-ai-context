@@ -1,8 +1,9 @@
+from models_src import MongoConfig
 from pydantic import model_validator
 from pathlib import Path
 
 from pydantic import EmailStr, Field, field_validator
-from typing import Any, Dict, ClassVar, Optional, List
+from typing import Any, Callable, Dict, ClassVar, Optional, List
 from enum import Enum
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +24,25 @@ class LogLevel(str, Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
 
+
+def build_mongo(env_files, enabled: bool = True) -> Optional[MongoConfig]:
+    """
+    Build MongoConfig from env files.
+    If enabled=False, returns None (Mongo disabled).
+    """
+    if not enabled:
+        return None
+    return MongoConfig(_env_file=env_files)
+
+
+def make_mongo_factory(env_files, enabled: bool = True) -> Callable[[], Optional[MongoConfig]]:
+    """
+    Pydantic's default_factory must be a zero-argument callable.
+    So we "close over" env_files/enabled and return a 0-arg factory.
+    """
+    def _factory() -> Optional[MongoConfig]:
+        return build_mongo(env_files, enabled)
+    return _factory
 
 class MailSettings(BaseSettings):
     
@@ -240,6 +260,8 @@ class Settings(BaseSettings):
     )
     
     mail: MailSettings = Field(default_factory=MailSettings)
+    
+    MONGO: Optional[MongoConfig] = Field(default_factory=make_mongo_factory(env_files=CONFIG_DIR.parent / ".env", enabled=True))
     
     CORS_ORIGINS: List[str] = ["http://localhost:8002"]
     

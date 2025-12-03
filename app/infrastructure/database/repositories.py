@@ -2,18 +2,11 @@ import datetime
 import logging
 from typing import List, Optional
 
+from models_src import APIKeyResponseDTO, CodeChunksRequestDTO, CodeChunksResponseDTO, get_active_api_key_store, get_active_code_chunks_store, get_active_git_label_store, get_active_repo_store, get_active_user_store, \
+    GitLabelResponseDTO, RepoResponseDTO, UserRequestDTO, UserResponseDTO
+
 from app.core.exceptions import exception_constants
 from app.core.exceptions.local_exceptions import ContextNotFoundError, DatabaseError
-from models_src.dto.api_key import APIKeyResponseDTO
-from models_src.dto.code_chunks import CodeChunksRequestDTO, CodeChunksResponseDTO
-from models_src.dto.git_label import GitLabelResponseDTO
-from models_src.dto.repo import RepoResponseDTO
-from models_src.dto.user import UserRequestDTO, UserResponseDTO
-from models_src.repositories.api_key import TortoiseApiKeyStore
-from models_src.repositories.code_chunks import TortoiseCodeChunksStore
-from models_src.repositories.git_label import TortoiseGitLabelStore
-from models_src.repositories.repo import TortoiseRepoStore
-from models_src.repositories.user import TortoiseUserStore
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +14,7 @@ logger = logging.getLogger(__name__)
 class UserRepositoryHelper:
 
     def __init__(self, repo=None):
-        self._repo = repo if repo else TortoiseUserStore()
+        self._repo = repo if repo else get_active_user_store()
 
     async def find_by_user_id(self, user_id: str) -> Optional[UserResponseDTO]:
         try:
@@ -61,7 +54,7 @@ class UserRepositoryHelper:
 class APIKeyRepositoryHelper:
 
     def __init__(self, repo=None):
-        self._repo = repo if repo else TortoiseApiKeyStore()
+        self._repo = repo if repo else get_active_api_key_store()
 
     async def find_active_by_key(self, api_key: str) -> Optional[APIKeyResponseDTO]:
         try:
@@ -83,7 +76,7 @@ class APIKeyRepositoryHelper:
 class RepoRepositoryHelper:
 
     def __init__(self, repo=None):
-        self._repo = repo if repo else TortoiseRepoStore()
+        self._repo = repo if repo else get_active_repo_store()
 
     async def find_by_repo_id_user_id(
         self, repo_id: str, user_id: str
@@ -133,7 +126,7 @@ class RepoRepositoryHelper:
 class GitLabelRepositoryHelper:
 
     def __init__(self, repo=None):
-        self._repo = repo if repo else TortoiseGitLabelStore()
+        self._repo = repo if repo else get_active_git_label_store()
 
     async def find_by_user_and_hosting(
         self, user_id: str, id: str, git_hosting: str
@@ -149,7 +142,7 @@ class GitLabelRepositoryHelper:
 
 class ContextRepositoryHelper:
     def __init__(self, repo=None):
-        self._repo = repo if repo else TortoiseRepoStore()
+        self._repo = repo if repo else get_active_repo_store()
 
     async def create_context(
         self, repo_id: str, user_id: str, config: dict
@@ -225,7 +218,7 @@ class ContextRepositoryHelper:
 class CodeChunksRepositoryHelper:
 
     def __init__(self, repo=None):
-        self._repo = repo if repo else TortoiseCodeChunksStore()
+        self._repo = repo if repo else get_active_code_chunks_store()
 
     async def store_emebeddings(
         self, repo_id: str, user_id: str, data: List[dict], commit_number: str
@@ -233,7 +226,7 @@ class CodeChunksRepositoryHelper:
         try:
             objects = []
             for r in data:
-                dto = CodeChunksResponseDTO(
+                dto = CodeChunksRequestDTO(
                     repo_id=repo_id,
                     user_id=user_id,
                     content=r.get("encrypted_content"),
@@ -245,9 +238,9 @@ class CodeChunksRepositoryHelper:
                     commit_number=commit_number,
                 )
                 objects.append(dto)
-            await self._repo.bulk_save(objects)
+            saved_bulk = await self._repo.bulk_save(objects)
             logger.info(f"Stored {len(objects)} embeddings for repo {repo_id}")
-            return objects[0] if objects else None
+            return saved_bulk[0] if saved_bulk else None
         except Exception as e:
             logger.error(f"Exception while storing embeddings: {e}")
             raise DatabaseError(

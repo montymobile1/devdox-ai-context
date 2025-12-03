@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
@@ -109,7 +108,7 @@ class QueueWorker:
 
                 if tracker is False:
                     break
-
+                
                 job_tracer = JobTraceMetaData() if enable_job_tracer else None
                 await self._process_job(
                     queue_name,
