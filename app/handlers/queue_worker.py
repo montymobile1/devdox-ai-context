@@ -4,7 +4,7 @@ import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from dependency_injector.wiring import Provide, inject
-from models_src.models.repo import QueueJobType
+from models_src import QueueJobType
 
 from app.core.container import Container
 from app.handlers.message_handler import MessageHandler
