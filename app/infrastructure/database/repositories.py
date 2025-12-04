@@ -5,6 +5,7 @@ from typing import List, Optional
 from models_src import APIKeyResponseDTO, CodeChunksRequestDTO, CodeChunksResponseDTO, get_active_api_key_store, get_active_code_chunks_store, get_active_git_label_store, get_active_repo_store, get_active_user_store, \
     GitLabelResponseDTO, RepoResponseDTO, UserRequestDTO, UserResponseDTO
 
+import uuid
 from app.core.exceptions import exception_constants
 from app.core.exceptions.local_exceptions import ContextNotFoundError, DatabaseError
 
@@ -82,10 +83,22 @@ class RepoRepositoryHelper:
         self, repo_id: str, user_id: str
     ) -> Optional[RepoResponseDTO]:
         try:
+
             return await self._repo.find_by_repo_id_user_id(repo_id, user_id)
         except Exception:
             logger.exception(exception_constants.ERROR_USER_NOT_FOUND_BY_ID)
             return None
+
+    async def update_repo_parent_id(self, id: str, parent_repo_id: str) -> None:
+        try:
+
+            await self._repo.update_repo_parent_id(str(id), str(parent_repo_id))
+        except Exception as e:
+            print("Exception in update_repo_parent_id", e)
+            raise DatabaseError(
+                user_message=exception_constants.DB_REPO_PARENT_ID_UPDATE_FAILED
+            ) from e
+
 
     async def find_by_repo_id(self, repo_id: str) -> Optional[RepoResponseDTO]:
         try:
@@ -214,6 +227,30 @@ class ContextRepositoryHelper:
                 user_message=exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED
             ) from e
 
+        async def update_repo_parent_id(
+                self, id: str, repo_parent_id: str
+        ) -> None:
+            try:
+                context = await self._repo.update_repo_parent_id(
+                    id=id, repo_parent_id=repo_parent_id
+                )
+                if not context or context <= 0:
+                    raise ContextNotFoundError(
+                        user_message=exception_constants.CONTEXT_NOT_FOUND,
+                        internal_context={"context_id": id},
+                    )
+
+                logger.info(f"Updated context {context_id} ")
+
+            except ContextNotFoundError:
+                raise
+            except Exception as e:
+                logger.error(f"Error updating repo_parent_id: {str(e)}")
+                raise DatabaseError(
+                    user_message=exception_constants.DB_CONTEXT_REPO_UPDATE_FAILED
+                ) from e
+
+
 
 class CodeChunksRepositoryHelper:
 
@@ -221,7 +258,7 @@ class CodeChunksRepositoryHelper:
         self._repo = repo if repo else get_active_code_chunks_store()
 
     async def store_emebeddings(
-        self, repo_id: str, user_id: str, data: List[dict], commit_number: str
+        self, repo_id: str, user_id: str, data: List[dict], commit_number: str, repo_parent_id: str=None
     ) -> Optional[CodeChunksResponseDTO]:
         try:
             objects = []
