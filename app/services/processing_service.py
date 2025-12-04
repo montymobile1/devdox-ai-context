@@ -408,7 +408,7 @@ class ProcessingService:
                 raise ValueError(f"Path contains invalid components: {relative_path}")
 
             # Resolve path relative to base directory
-            repo_path = (self.base_dir / relative_path).resolve()
+            repo_path = relative_path.resolve()
 
             # Security check: ensure resolved path is within base_dir
             base_dir_resolved = self.base_dir.resolve()
@@ -533,7 +533,7 @@ class ProcessingService:
                 processing_end_time=repo.processing_end_time,
                 total_files=repo.total_files,
                 total_chunks=repo.total_chunks,
-                total_embeddings=0,
+                total_embeddings=repo.total_embeddings,
             )
             
             if job_tracer:
@@ -672,8 +672,8 @@ class ProcessingService:
                 status=StatusTypes.COMPLETED,
                 processing_end_time=end_time,
                 total_files=len(files),
-                total_chunks=len(chunks),
-                total_embeddings=len(embeddings),
+                total_chunks=repo.total_chunks + len(chunks),
+                total_embeddings=repo.total_embeddings + len(embeddings),
             )
             await self.remove_repository(relative_path)
 
@@ -692,9 +692,9 @@ class ProcessingService:
                 str(repo.id),
                 status=StatusTypes.FAILED,
                 processing_end_time=datetime.now(timezone.utc),
-                total_files=0,
-                total_chunks=0,
-                total_embeddings=0,
+                total_files=repo.total_files,
+                total_chunks=repo.total_chunks,
+                total_embeddings=repo.total_embeddings,
             )
 
             return ProcessingResult(

@@ -4,6 +4,7 @@ import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from dependency_injector.wiring import Provide, inject
+from models_src import QueueJobType
 
 from app.core.container import Container
 from app.handlers.message_handler import MessageHandler
@@ -51,7 +52,7 @@ class QueueWorker:
         self.stats["start_time"] = datetime.now(timezone.utc)
         # Start multiple worker loops for different queue types
         tasks = [
-            asyncio.create_task(self._worker_loop("processing", ["analyze", "process"]))
+            asyncio.create_task(self._worker_loop("processing", [QueueJobType.ANALYZE, QueueJobType.REANALYZE, QueueJobType.PROCESS]))
         ]
 
         try:
@@ -107,8 +108,8 @@ class QueueWorker:
                 tracker = await self._try_claim(job, queue_name)
 
                 if tracker is False:
-                    break
-                
+                    continue
+
                 job_tracer = JobTraceMetaData() if enable_job_tracer else None
                 await self._process_job(
                     queue_name,
@@ -229,7 +230,7 @@ class QueueWorker:
         job_tracer,
     ) -> None:
         """No-ops when queue/type don’t match; keeps the main flow branch-free."""
-        if queue_name != "processing" or job_type not in ("analyze", "process"):
+        if queue_name != "processing" or job_type not in (QueueJobType.ANALYZE, QueueJobType.REANALYZE, QueueJobType.PROCESS):
             return
         if tracker:
             await tracker.start()

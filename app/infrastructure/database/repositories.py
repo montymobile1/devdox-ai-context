@@ -147,6 +147,9 @@ class ContextRepositoryHelper:
     async def create_context(
         self, repo_id: str, user_id: str, config: dict
     ) -> RepoResponseDTO:
+        """
+        DO NOT USE THIS FUNCTION ITS INCONSISTENT WITH THE CODE
+        """
         try:
             context = await self._repo.save_context(
                 repo_id=repo_id, user_id=user_id, config=config
