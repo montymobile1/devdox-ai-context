@@ -5,7 +5,7 @@ import shutil
 import uuid
 from uuid import UUID
 
-from models_src.models.repo import StatusTypes
+from models_src import StatusTypes
 from tenacity import (
     retry,
     stop_after_attempt,
